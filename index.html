@@ -103,12 +103,11 @@
       const fetchSheetLogs = async () => {
         setIsLoadingLogs(true);
         try {
-          const response = await fetch(SHEET_CSV_URL + '&t=' + new Date().getTime());
+          const response = await fetch(SHEET_CSV_URL + '&_=' + new Date().getTime());
           const csvText = await response.text();
           const lines = csvText.split('\n');
           const logs = [];
 
-          // 1行目はヘッダーなのでスキップ (i = 1から開始)
           for (let i = 1; i < lines.length; i++) {
             const line = lines[i].trim();
             if (!line) continue;
@@ -127,7 +126,7 @@
               });
             }
           }
-          setAllLogs(logs.reverse()); // 新しい順
+          setAllLogs(logs.reverse());
         } catch (err) {
           console.error("CSV取得エラー:", err);
         } finally {
@@ -139,7 +138,7 @@
         fetchSheetLogs();
       }, []);
 
-      // ログ保存（GASバックアップ送信 ＋ 履歴自動再取得）
+      // ログ保存
       const saveLogItem = async (logItem) => {
         setIsSending(true);
         try {
@@ -164,7 +163,14 @@
           return;
         }
 
-        const todayStr = new Date().toISOString().split('T')[0];
+        const now = new Date();
+        const y = now.getFullYear();
+        const m = now.getMonth() + 1;
+        const d = now.getDate();
+        const h = String(now.getHours()).padStart(2, '0');
+        const min = String(now.getMinutes()).padStart(2, '0');
+        const todayStr = `${y}/${m}/${d} ${h}:${min}`;
+
         let savedCount = 0;
 
         for (let i = 0; i < setsData.length; i++) {
@@ -201,7 +207,7 @@
 
       // 健康データ保存
       const handleSaveHealth = async () => {
-        const datetimeStr = healthForm.testDate || new Date().toISOString().split('T')[0];
+        const datetimeStr = healthForm.testDate ? healthForm.testDate.replace(/-/g, '/') : new Date().toLocaleDateString();
         let hasData = false;
 
         if (healthForm.glucose) {
@@ -330,13 +336,13 @@
         }));
       };
 
-      // 日付一致ログ抽出（日付の文字列比較）
+      // 日付のゼロ埋めを無視して柔軟にマッチングする判定関数
       const filteredLogs = allLogs.filter(log => {
         if (!log.datetime) return false;
-        // 2026/9/24 などの表記にも対応できるよう部分一致
-        const logDateStr = log.datetime.split(' ')[0].replace(/\//g, '-');
-        const targetDateStr = selectedHistoryDate.replace(/-/g, '-');
-        return logDateStr.includes(targetDateStr) || targetDateStr.includes(logDateStr);
+        // スプレッドシートの日付 (例: 2026/9/24) と 選択日付 (例: 2026-09-24) の数値部分を抽出し比較
+        const logNums = log.datetime.replace(/[^0-9]/g, '');
+        const selNums = selectedHistoryDate.replace(/[^0-9]/g, '');
+        return logNums.startsWith(selNums) || selNums.startsWith(logNums);
       });
 
       // テーマ配色
@@ -477,7 +483,7 @@
                 <div class={`p-4 rounded-xl border shadow-sm ${cardClass}`}>
                   <h2 class="text-xs font-bold text-gray-400 mb-1">本日のトレーニング状況</h2>
                   <p class="text-sm font-bold text-red-500">
-                    {allLogs.filter(l => l.datetime && l.datetime.includes(new Date().toISOString().split('T')[0]) && l.type === '筋トレ').length} 件の記録あり
+                    {allLogs.filter(l => l.datetime && l.datetime.replace(/[^0-9]/g, '').startsWith(new Date().toISOString().split('T')[0].replace(/[^0-9]/g, '')) && l.type === '筋トレ').length} 件の記録あり
                   </p>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
@@ -630,7 +636,7 @@
                   rel="noopener noreferrer"
                   class="inline-block w-full py-3 bg-red-600 text-white font-bold text-sm rounded-xl shadow-lg hover:bg-red-700 transition"
                 >
-                  NotebookLM を開く ↗
+                  NotebookLM 을開く ↗
                 </a>
               </div>
             )}
