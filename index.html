@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -11,13 +10,9 @@
   <title>Health & Training Log</title>
 
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
   <script src="https://cdn.tailwindcss.com"></script>
-
 </head>
 
 <body class="antialiased selection:bg-red-500 selection:text-white">
@@ -27,17 +22,18 @@
 
     const { useState, useEffect } = React;
 
-    // =========================================================
+
+    // ============================================================
     // Google Apps Script Web App URL
-    // =========================================================
+    // ============================================================
 
     const GAS_WEBAPP_URL =
-      "https://script.google.com/macros/s/AKfycbxolxpP8zH9hfJLIy514aTN4ePHnxQRxLI_t6KMTBO_dJpbJ46EwifIGqX7VJeOBWde6w/exec";
+      "https://script.google.com/macros/s/AKfycbzRzH6rV4Oz3gdm-ZuT-u0DpRba23Qy7hLoS4-KoXuiLi9Das-eLKiynEOnuPF4ueSioQ/exec";
 
 
-    // =========================================================
+    // ============================================================
     // 初期カテゴリー
-    // =========================================================
+    // ============================================================
 
     const DEFAULT_CATEGORIES = {
       "胸": ["腕立て", "ディップス", "ベンチプレス"],
@@ -46,11 +42,12 @@
     };
 
 
-    // =========================================================
+    // ============================================================
     // 日本時間の日付
-    // =========================================================
+    // ============================================================
 
     const getJapanDate = () => {
+
       const now = new Date();
 
       const japanTime = new Date(
@@ -67,25 +64,28 @@
     };
 
 
-    // =========================================================
-    // App
-    // =========================================================
+    // ============================================================
+    // アプリ本体
+    // ============================================================
 
     function App() {
 
       const [tab, setTab] = useState("home");
 
       const [isSending, setIsSending] = useState(false);
-      const [sendSuccessMessage, setSendSuccessMessage] = useState("");
+
+      const [sendSuccessMessage, setSendSuccessMessage] =
+        useState("");
 
 
-      // =======================================================
+      // ============================================================
       // テーマ
-      // =======================================================
+      // ============================================================
 
       const [isDarkMode, setIsDarkMode] = useState(() => {
 
-        const savedTheme = localStorage.getItem("app_theme");
+        const savedTheme =
+          localStorage.getItem("app_theme");
 
         if (savedTheme) {
           return savedTheme === "dark";
@@ -110,13 +110,12 @@
 
           return next;
         });
-
       };
 
 
-      // =======================================================
+      // ============================================================
       // 部位・種目
-      // =======================================================
+      // ============================================================
 
       const [categories, setCategories] = useState(() => {
 
@@ -139,14 +138,26 @@
         useState("");
 
 
-      // =======================================================
+      // ============================================================
       // 筋トレ入力
-      // =======================================================
+      // ============================================================
 
       const emptySets = [
-        { weight: "", reps: "", memo: "" },
-        { weight: "", reps: "", memo: "" },
-        { weight: "", reps: "", memo: "" }
+        {
+          weight: "",
+          reps: "",
+          memo: ""
+        },
+        {
+          weight: "",
+          reps: "",
+          memo: ""
+        },
+        {
+          weight: "",
+          reps: "",
+          memo: ""
+        }
       ];
 
 
@@ -154,22 +165,28 @@
         useState(emptySets);
 
 
-      // =======================================================
+      // ============================================================
       // 健康データ
-      // =======================================================
+      // ============================================================
 
       const initialHealthForm = {
+
         testDate: getJapanDate(),
 
         glucose: "",
+
         hba1c: "",
 
         totalChol: "",
+
         hdl: "",
+
         ldl: "",
+
         triglycerides: "",
 
         weight: "",
+
         fat: "",
 
         timing: "食後2時間",
@@ -182,58 +199,50 @@
         useState(initialHealthForm);
 
 
-      // =======================================================
+      // ============================================================
       // 履歴
-      // =======================================================
+      // ============================================================
 
-      const [allLogs, setAllLogs] =
-        useState(() => {
+      const [allLogs, setAllLogs] = useState(() => {
 
-          const savedLogs =
-            localStorage.getItem(
-              "app_logs_history"
-            );
+        const savedLogs =
+          localStorage.getItem("app_logs_history");
 
-          return savedLogs
-            ? JSON.parse(savedLogs)
-            : [];
-        });
+        return savedLogs
+          ? JSON.parse(savedLogs)
+          : [];
+      });
 
 
-      const [selectedHistoryDate,
-        setSelectedHistoryDate] =
+      const [selectedHistoryDate, setSelectedHistoryDate] =
         useState(getJapanDate());
 
 
-      // =======================================================
+      // ============================================================
       // 管理モーダル
-      // =======================================================
+      // ============================================================
 
-      const [showManageModal,
-        setShowManageModal] =
+      const [showManageModal, setShowManageModal] =
         useState(false);
 
 
-      const [newCategoryName,
-        setNewCategoryName] =
+      const [newCategoryName, setNewCategoryName] =
         useState("");
 
 
-      const [newExerciseName,
-        setNewExerciseName] =
+      const [newExerciseName, setNewExerciseName] =
         useState("");
 
 
-      const [targetCategoryForNewEx,
-        setTargetCategoryForNewEx] =
+      const [targetCategoryForNewEx, setTargetCategoryForNewEx] =
         useState(
           Object.keys(categories)[0] || ""
         );
 
 
-      // =======================================================
+      // ============================================================
       // 種目変更時
-      // =======================================================
+      // ============================================================
 
       useEffect(() => {
 
@@ -249,15 +258,14 @@
         } else {
 
           setSelectedExercise("");
-
         }
 
       }, [selectedCategory, categories]);
 
 
-      // =======================================================
+      // ============================================================
       // LocalStorage
-      // =======================================================
+      // ============================================================
 
       useEffect(() => {
 
@@ -279,12 +287,103 @@
       }, [allLogs]);
 
 
-      // =======================================================
+      // ============================================================
+      // Googleスプレッドシートから履歴を読み込む
+      // JSONP方式
+      // ============================================================
+
+      const loadLogsFromGAS = () => {
+
+        return new Promise((resolve) => {
+
+          const callbackName =
+            "gasHistoryCallback_" +
+            Date.now();
+
+
+          window[callbackName] = (result) => {
+
+            try {
+
+              if (
+                result &&
+                result.status === "success" &&
+                Array.isArray(result.logs)
+              ) {
+
+                setAllLogs(result.logs);
+
+                localStorage.setItem(
+                  "app_logs_history",
+                  JSON.stringify(result.logs)
+                );
+              }
+
+            } finally {
+
+              delete window[callbackName];
+
+              const oldScript =
+                document.getElementById(callbackName);
+
+              if (oldScript) {
+                oldScript.remove();
+              }
+
+              resolve();
+            }
+          };
+
+
+          const script =
+            document.createElement("script");
+
+
+          script.id = callbackName;
+
+
+          script.src =
+            GAS_WEBAPP_URL +
+            "?callback=" +
+            callbackName +
+            "&t=" +
+            Date.now();
+
+
+          script.onerror = () => {
+
+            delete window[callbackName];
+
+            script.remove();
+
+            resolve();
+          };
+
+
+          document.body.appendChild(script);
+
+        });
+      };
+
+
+      // ============================================================
+      // アプリ起動時にGoogleスプレッドシートから履歴取得
+      // ============================================================
+
+      useEffect(() => {
+
+        loadLogsFromGAS();
+
+      }, []);
+
+
+      // ============================================================
       // ログ保存
-      // =======================================================
+      // ============================================================
 
       const saveLogItem = async (logItem) => {
 
+        // まず画面上に反映
         setAllLogs(prev => [
           logItem,
           ...prev
@@ -323,15 +422,13 @@
         } finally {
 
           setIsSending(false);
-
         }
-
       };
 
 
-      // =======================================================
+      // ============================================================
       // 保存完了表示
-      // =======================================================
+      // ============================================================
 
       const showSavedMessage = () => {
 
@@ -344,25 +441,28 @@
           setSendSuccessMessage("");
 
         }, 3000);
-
       };
 
 
-      // =======================================================
+      // ============================================================
       // 筋トレ保存
-      // =======================================================
+      // ============================================================
 
       const handleSaveTraining = async () => {
 
         if (!selectedExercise) {
 
-          alert("種目を選択してください");
+          alert(
+            "種目を選択してください"
+          );
 
           return;
         }
 
 
-        const todayStr = getJapanDate();
+        const todayStr =
+          getJapanDate();
+
 
         let savedCount = 0;
 
@@ -373,7 +473,8 @@
           i++
         ) {
 
-          const setItem = setsData[i];
+          const setItem =
+            setsData[i];
 
 
           if (
@@ -389,9 +490,11 @@
 
             const logPayload = {
 
-              datetime: todayStr,
+              datetime:
+                todayStr,
 
-              type: "筋トレ",
+              type:
+                "筋トレ",
 
               category:
                 selectedCategory,
@@ -418,9 +521,7 @@
 
 
             savedCount++;
-
           }
-
         }
 
 
@@ -434,20 +535,31 @@
 
           showSavedMessage();
 
+
           setSetsData([
-            { weight: "", reps: "", memo: "" },
-            { weight: "", reps: "", memo: "" },
-            { weight: "", reps: "", memo: "" }
+            {
+              weight: "",
+              reps: "",
+              memo: ""
+            },
+            {
+              weight: "",
+              reps: "",
+              memo: ""
+            },
+            {
+              weight: "",
+              reps: "",
+              memo: ""
+            }
           ]);
-
         }
-
       };
 
 
-      // =======================================================
+      // ============================================================
       // 健康データ保存
-      // =======================================================
+      // ============================================================
 
       const handleSaveHealth = async () => {
 
@@ -464,11 +576,14 @@
 
           await saveLogItem({
 
-            datetime: datetimeStr,
+            datetime:
+              datetimeStr,
 
-            type: "糖尿病",
+            type:
+              "糖尿病",
 
-            category: "血糖値",
+            category:
+              "血糖値",
 
             detail:
               healthForm.timing,
@@ -476,12 +591,13 @@
             val1:
               `${healthForm.glucose} mg/dL`,
 
-            val2: "",
+            val2:
+              "",
 
             memo:
               healthForm.memo
-
           });
+
 
           hasData = true;
         }
@@ -492,23 +608,28 @@
 
           await saveLogItem({
 
-            datetime: datetimeStr,
+            datetime:
+              datetimeStr,
 
-            type: "糖尿病",
+            type:
+              "糖尿病",
 
-            category: "HbA1c",
+            category:
+              "HbA1c",
 
-            detail: "血液検査",
+            detail:
+              "血液検査",
 
             val1:
               `${healthForm.hba1c} %`,
 
-            val2: "",
+            val2:
+              "",
 
             memo:
               healthForm.memo
-
           });
+
 
           hasData = true;
         }
@@ -537,8 +658,8 @@
               : ""
 
           ]
-          .filter(Boolean)
-          .join(" / ");
+            .filter(Boolean)
+            .join(" / ");
 
 
           const lipid2 =
@@ -549,23 +670,28 @@
 
           await saveLogItem({
 
-            datetime: datetimeStr,
+            datetime:
+              datetimeStr,
 
-            type: "血液検査",
+            type:
+              "血液検査",
 
-            category: "脂質パネル",
+            category:
+              "脂質パネル",
 
             detail:
               "コレステロール・中性脂肪",
 
-            val1: lipid1,
+            val1:
+              lipid1,
 
-            val2: lipid2,
+            val2:
+              lipid2,
 
             memo:
               healthForm.memo
-
           });
+
 
           hasData = true;
         }
@@ -579,13 +705,17 @@
 
           await saveLogItem({
 
-            datetime: datetimeStr,
+            datetime:
+              datetimeStr,
 
-            type: "体組成",
+            type:
+              "体組成",
 
-            category: "体重・体脂肪",
+            category:
+              "体重・体脂肪",
 
-            detail: "測定",
+            detail:
+              "測定",
 
             val1:
               healthForm.weight
@@ -599,8 +729,8 @@
 
             memo:
               healthForm.memo
-
           });
+
 
           hasData = true;
         }
@@ -620,16 +750,18 @@
 
 
         setHealthForm({
-          ...initialHealthForm,
-          testDate: getJapanDate()
-        });
 
+          ...initialHealthForm,
+
+          testDate:
+            getJapanDate()
+        });
       };
 
 
-      // =======================================================
+      // ============================================================
       // 部位追加
-      // =======================================================
+      // ============================================================
 
       const handleAddCategory = () => {
 
@@ -651,8 +783,11 @@
 
 
         setCategories(prev => ({
+
           ...prev,
+
           [name]: []
+
         }));
 
 
@@ -661,13 +796,12 @@
         setTargetCategoryForNewEx(name);
 
         setNewCategoryName("");
-
       };
 
 
-      // =======================================================
+      // ============================================================
       // 部位削除
-      // =======================================================
+      // ============================================================
 
       const handleDeleteCategory =
         (catToDelete) => {
@@ -715,15 +849,13 @@
           setSelectedCategory("");
 
           setTargetCategoryForNewEx("");
-
         }
-
       };
 
 
-      // =======================================================
+      // ============================================================
       // 種目追加
-      // =======================================================
+      // ============================================================
 
       const handleAddExercise = () => {
 
@@ -765,9 +897,7 @@
                 ...currentList,
                 name
               ]
-
           };
-
         });
 
 
@@ -780,13 +910,12 @@
 
 
         setNewExerciseName("");
-
       };
 
 
-      // =======================================================
+      // ============================================================
       // 種目削除
-      // =======================================================
+      // ============================================================
 
       const handleDeleteExercise =
         (cat, exToDelete) => {
@@ -807,15 +936,13 @@
               .filter(
                 ex => ex !== exToDelete
               )
-
         }));
-
       };
 
 
-      // =======================================================
+      // ============================================================
       // 履歴削除
-      // =======================================================
+      // ============================================================
 
       const handleDeleteLog =
         (indexToDelete) => {
@@ -833,13 +960,12 @@
               idx !== indexToDelete
           )
         );
-
       };
 
 
-      // =======================================================
+      // ============================================================
       // 履歴抽出
-      // =======================================================
+      // ============================================================
 
       const filteredLogs =
         allLogs.filter(log => {
@@ -847,18 +973,18 @@
           if (!log.datetime)
             return false;
 
+
           return String(
             log.datetime
           ).includes(
             selectedHistoryDate
           );
-
         });
 
 
-      // =======================================================
+      // ============================================================
       // テーマ
-      // =======================================================
+      // ============================================================
 
       const themeClass =
         isDarkMode
@@ -884,17 +1010,15 @@
           : "bg-white border-gray-200 text-gray-600";
 
 
-      // =======================================================
+      // ============================================================
       // JSX
-      // =======================================================
+      // ============================================================
 
       return (
 
         <div
           className={`max-w-md mx-auto min-h-screen flex flex-col pb-20 relative transition-colors duration-200 ${themeClass}`}
         >
-
-          {/* ================= HEADER ================= */}
 
           <header
             className="bg-red-600 text-white p-4 font-bold text-lg text-center sticky top-0 z-10 shadow flex justify-between items-center"
@@ -913,8 +1037,10 @@
                 "🏠 ホーム"}
 
               {tab === "training" &&
-                (selectedExercise ||
-                  "筋トレ")}
+                (
+                  selectedExercise ||
+                  "筋トレ"
+                )}
 
               {tab === "health" &&
                 "🩺 健康データ"}
@@ -940,8 +1066,6 @@
           </header>
 
 
-          {/* ================= MESSAGE ================= */}
-
           {sendSuccessMessage && (
 
             <div
@@ -953,19 +1077,16 @@
           )}
 
 
-          {/* ================= MAIN ================= */}
-
           <main className="p-4 flex-1">
 
 
-            {/* =================================================
-                HOME
-            ================================================= */}
+            {/* ==================================================
+                ホーム
+            ================================================== */}
 
             {tab === "home" && (
 
               <div className="space-y-4">
-
 
                 <div
                   className={`p-5 rounded-2xl border shadow-sm ${cardClass}`}
@@ -1037,18 +1158,16 @@
                 </button>
 
               </div>
-
             )}
 
 
-            {/* =================================================
-                TRAINING
-            ================================================= */}
+            {/* ==================================================
+                筋トレ
+            ================================================== */}
 
             {tab === "training" && (
 
               <div className="space-y-4">
-
 
                 <div
                   className="flex justify-between items-center"
@@ -1070,8 +1189,6 @@
 
                 </div>
 
-
-                {/* 部位 */}
 
                 <div
                   className="flex gap-2 overflow-x-auto pb-1"
@@ -1100,8 +1217,6 @@
 
                 </div>
 
-
-                {/* 種目 */}
 
                 <div>
 
@@ -1139,8 +1254,6 @@
 
                 </div>
 
-
-                {/* セット */}
 
                 {setsData.map(
                   (set, idx) => (
@@ -1188,6 +1301,7 @@
                           className={`w-20 p-2 border rounded text-center text-sm ${inputClass}`}
                         />
 
+
                         <span className="text-xs text-gray-400">
                           kg
                         </span>
@@ -1219,6 +1333,7 @@
                           }}
                           className={`w-20 p-2 border rounded text-center text-sm ${inputClass}`}
                         />
+
 
                         <span className="text-xs text-gray-400">
                           回
@@ -1267,19 +1382,20 @@
                   disabled={isSending}
                   className="w-full py-4 bg-red-600 text-white font-bold rounded-xl shadow-md disabled:bg-gray-500"
                 >
+
                   {isSending
                     ? "保存中..."
                     : "💾 記録を保存"}
+
                 </button>
 
               </div>
-
             )}
 
 
-            {/* =================================================
-                HEALTH
-            ================================================= */}
+            {/* ==================================================
+                健康
+            ================================================== */}
 
             {tab === "health" && (
 
@@ -1292,13 +1408,12 @@
                 </h2>
 
 
-                {/* 日付 */}
-
                 <div>
 
                   <label className="text-xs font-bold text-gray-400">
                     📅 検査日・測定日
                   </label>
+
 
                   <input
                     type="date"
@@ -1317,8 +1432,6 @@
 
                 </div>
 
-
-                {/* 血糖 */}
 
                 <div
                   className="space-y-3 border-t pt-4"
@@ -1339,6 +1452,7 @@
                         血糖値
                       </label>
 
+
                       <input
                         type="number"
                         inputMode="decimal"
@@ -1356,6 +1470,7 @@
                         className={`w-full p-3 border rounded mt-1 ${inputClass}`}
                       />
 
+
                       <span className="text-[10px] text-gray-400">
                         mg/dL
                       </span>
@@ -1368,6 +1483,7 @@
                       <label className="text-xs text-gray-400">
                         HbA1c
                       </label>
+
 
                       <input
                         type="number"
@@ -1386,6 +1502,7 @@
                         placeholder="6.5"
                         className={`w-full p-3 border rounded mt-1 ${inputClass}`}
                       />
+
 
                       <span className="text-[10px] text-gray-400">
                         %
@@ -1435,8 +1552,6 @@
                 </div>
 
 
-                {/* 脂質 */}
-
                 <div
                   className="space-y-3 border-t pt-4"
                 >
@@ -1453,6 +1568,7 @@
                       <label className="text-xs text-gray-400">
                         総コレステロール
                       </label>
+
 
                       <input
                         type="number"
@@ -1478,6 +1594,7 @@
                         中性脂肪
                       </label>
 
+
                       <input
                         type="number"
                         value={
@@ -1501,6 +1618,7 @@
                       <label className="text-xs text-gray-400">
                         HDL
                       </label>
+
 
                       <input
                         type="number"
@@ -1526,6 +1644,7 @@
                         LDL
                       </label>
 
+
                       <input
                         type="number"
                         value={
@@ -1548,8 +1667,6 @@
                 </div>
 
 
-                {/* 体組成 */}
-
                 <div
                   className="space-y-3 border-t pt-4"
                 >
@@ -1566,6 +1683,7 @@
                       <label className="text-xs text-gray-400">
                         体重
                       </label>
+
 
                       <input
                         type="number"
@@ -1585,6 +1703,7 @@
                         className={`w-full p-3 border rounded mt-1 ${inputClass}`}
                       />
 
+
                       <span className="text-[10px] text-gray-400">
                         kg
                       </span>
@@ -1597,6 +1716,7 @@
                       <label className="text-xs text-gray-400">
                         体脂肪率
                       </label>
+
 
                       <input
                         type="number"
@@ -1616,6 +1736,7 @@
                         className={`w-full p-3 border rounded mt-1 ${inputClass}`}
                       />
 
+
                       <span className="text-[10px] text-gray-400">
                         %
                       </span>
@@ -1627,13 +1748,12 @@
                 </div>
 
 
-                {/* メモ */}
-
                 <div>
 
                   <label className="text-xs text-gray-400">
                     📝 メモ
                   </label>
+
 
                   <textarea
                     rows="3"
@@ -1661,24 +1781,24 @@
                   disabled={isSending}
                   className="w-full py-4 bg-red-600 text-white font-bold rounded-xl shadow disabled:bg-gray-500"
                 >
+
                   {isSending
                     ? "保存中..."
                     : "💾 健康データを保存"}
+
                 </button>
 
               </div>
-
             )}
 
 
-            {/* =================================================
-                HISTORY
-            ================================================= */}
+            {/* ==================================================
+                履歴
+            ================================================== */}
 
             {tab === "history" && (
 
               <div className="space-y-4">
-
 
                 <div
                   className={`p-4 rounded-xl border space-y-3 ${cardClass}`}
@@ -1740,11 +1860,13 @@
                                     : "bg-blue-900 text-blue-200"
                                 }`}
                               >
+
                                 {log.type}
                                 {" "}
                                 -
                                 {" "}
                                 {log.category}
+
                               </span>
 
 
@@ -1813,9 +1935,9 @@
             )}
 
 
-            {/* =================================================
-                NOTEBOOK LM
-            ================================================= */}
+            {/* ==================================================
+                NotebookLM
+            ================================================== */}
 
             {tab === "notebooklm" && (
 
@@ -1834,8 +1956,10 @@
 
 
                 <p className="text-xs text-gray-400">
+
                   Googleスプレッドシートのデータを
                   NotebookLMで分析できます。
+
                 </p>
 
 
@@ -1855,9 +1979,9 @@
           </main>
 
 
-          {/* =================================================
-              管理モーダル
-          ================================================= */}
+          {/* ====================================================
+              部位・種目管理モーダル
+          ==================================================== */}
 
           {showManageModal && (
 
@@ -1885,8 +2009,6 @@
 
                 </div>
 
-
-                {/* 部位追加 */}
 
                 <div className="space-y-2">
 
@@ -1928,8 +2050,6 @@
 
                 <hr className="border-gray-700" />
 
-
-                {/* 種目追加 */}
 
                 <div className="space-y-2">
 
@@ -2003,8 +2123,6 @@
                 <hr className="border-gray-700" />
 
 
-                {/* 現在の部位・種目 */}
-
                 <div className="space-y-3">
 
                   <label className="text-xs font-bold text-gray-400">
@@ -2017,7 +2135,11 @@
 
                     <div
                       key={cat}
-                      className={`p-3 rounded-xl border ${isDarkMode ? "bg-gray-800 border-gray-700" : "bg-gray-50 border-gray-200"}`}
+                      className={`p-3 rounded-xl border ${
+                        isDarkMode
+                          ? "bg-gray-800 border-gray-700"
+                          : "bg-gray-50 border-gray-200"
+                      }`}
                     >
 
                       <div className="flex justify-between items-center mb-2">
@@ -2107,9 +2229,9 @@
           )}
 
 
-          {/* =================================================
-              NAVIGATION
-          ================================================= */}
+          {/* ====================================================
+              下部ナビゲーション
+          ==================================================== */}
 
           <nav
             className={`fixed bottom-0 left-0 right-0 max-w-md mx-auto border-t flex justify-around p-2 text-xs z-10 ${navClass}`}
@@ -2192,15 +2314,13 @@
           </nav>
 
         </div>
-
       );
-
     }
 
 
-    // =========================================================
-    // 起動
-    // =========================================================
+    // ============================================================
+    // React起動
+    // ============================================================
 
     ReactDOM
       .createRoot(
