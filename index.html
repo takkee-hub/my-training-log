@@ -20,13 +20,15 @@
     const DEFAULT_CATEGORIES = {
       '胸': ['腕立て', 'ディップス', 'ベンチプレス'],
       '背中': ['ワンハンドロー', 'ダンベルプルオーバー', '懸垂'],
-      '脚': ['スクワット', 'ブルガリアンスクワット', 'カーフ']
+      '脚': ['スクワット', 'ブルガリアンスクワット', 'カーフ'],
+      '格闘技・全身': ['シャドーボクシング', 'サンドバッグ', '縄跳び']
     };
 
     function App() {
       const [tab, setTab] = useState('training');
       const [isSending, setIsSending] = useState(false);
       const [sendSuccessMessage, setSendSuccessMessage] = useState('');
+      const [isLoadingLogs, setIsLoadingLogs] = useState(false);
 
       // テーマ管理
       const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -75,12 +77,8 @@
         memo: ''
       });
 
-      // 履歴データ（LocalStorage保持）
-      const [allLogs, setAllLogs] = useState(() => {
-        const savedLogs = localStorage.getItem('app_logs_history');
-        return savedLogs ? JSON.parse(savedLogs) : [];
-      });
-
+      // 履歴データ（スプレッドシートから取得）
+      const [allLogs, setAllLogs] = useState([]);
       const [selectedHistoryDate, setSelectedHistoryDate] = useState(new Date().toISOString().split('T')[0]);
 
       // 管理モーダル
@@ -89,9 +87,38 @@
       const [newExerciseName, setNewExerciseName] = useState('');
       const [targetCategoryForNewEx, setTargetCategoryForNewEx] = useState(Object.keys(categories)[0] || '');
 
+      // スプレッドシートから履歴を読み込む関数
+      const fetchLogsFromSheet = async () => {
+        setIsLoadingLogs(true);
+        try {
+          const res = await fetch(GAS_WEBAPP_URL);
+          const data = await res.json();
+          if (data.status === 'success' && Array.isArray(data.logs)) {
+            setAllLogs(data.logs);
+          }
+        } catch (err) {
+          console.error("履歴の取得に失敗しました:", err);
+        } finally {
+          setIsLoadingLogs(false);
+        }
+      };
+
+      // アプリ起動時および履歴タブ表示時にスプレッドシートから最新データを取得
+      useEffect(() => {
+        fetchLogsFromSheet();
+      }, []);
+
+      useEffect(() => {
+        if (tab === 'history' || tab === 'home') {
+          fetchLogsFromSheet();
+        }
+      }, [tab]);
+
       useEffect(() => {
         if (categories[selectedCategory] && categories[selectedCategory].length > 0) {
-          setSelectedExercise(categories[selectedCategory][0]);
+          if (!categories[selectedCategory].includes(selectedExercise)) {
+            setSelectedExercise(categories[selectedCategory][0]);
+          }
         } else {
           setSelectedExercise('');
         }
@@ -101,14 +128,8 @@
         localStorage.setItem('app_categories', JSON.stringify(categories));
       }, [categories]);
 
-      useEffect(() => {
-        localStorage.setItem('app_logs_history', JSON.stringify(allLogs));
-      }, [allLogs]);
-
-      // ログ追加（ローカル保存 ＋ GASバックアップ送信）
+      // ログ追加（GAS送信 ＋ 成功後に再取得）
       const saveLogItem = async (logItem) => {
-        setAllLogs(prev => [logItem, ...prev]);
-
         setIsSending(true);
         try {
           await fetch(GAS_WEBAPP_URL, {
@@ -117,6 +138,10 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(logItem)
           });
+          // 少し待ってからスプレッドシートの最新データを再読み込み
+          setTimeout(() => {
+            fetchLogsFromSheet();
+          }, 1500);
         } catch (err) {
           console.error("GAS送信エラー:", err);
         } finally {
@@ -124,7 +149,7 @@
         }
       };
 
-      // 筋トレ保存（重さ空欄のときは「自重」と判定）
+      // 筋トレ保存
       const handleSaveTraining = async () => {
         if (!selectedExercise) {
           alert('種目を選択してください');
@@ -136,9 +161,7 @@
 
         for (let i = 0; i < setsData.length; i++) {
           const setItem = setsData[i];
-          // 重さまたは回数が入力されている場合
           if (setItem.weight !== '' || setItem.reps !== '') {
-            // 重さが空欄（または未入力）の場合は「自重」とする
             const weightVal = setItem.weight ? `${setItem.weight} kg` : '自重';
 
             const logPayload = {
@@ -299,12 +322,6 @@
         }));
       };
 
-      // 履歴削除
-      const handleDeleteLog = (indexToDelete) => {
-        if (!confirm('この記録を削除しますか？')) return;
-        setAllLogs(prev => prev.filter((_, idx) => idx !== indexToDelete));
-      };
-
       // 日付一致ログ抽出
       const filteredLogs = allLogs.filter(log => {
         if (!log.datetime) return false;
@@ -318,10 +335,10 @@
       const navClass = isDarkMode ? 'bg-gray-900 border-gray-800 text-gray-400' : 'bg-white border-gray-200 text-gray-600';
 
       return (
-        <div class={`max-w-md mx-auto min-h-screen flex flex-col justify-between shadow-lg pb-20 relative transition-colors duration-200 ${themeClass}`}>
+        <div className={`max-w-md mx-auto min-h-screen flex flex-col justify-between shadow-lg pb-20 relative transition-colors duration-200 ${themeClass}`}>
           {/* ヘッダー */}
-          <header class="bg-red-600 text-white p-4 font-bold text-lg text-center sticky top-0 z-10 shadow flex justify-between items-center">
-            <span class="text-xs bg-red-700 px-2 py-1 rounded">Sync Sheet</span>
+          <header className="bg-red-600 text-white p-4 font-bold text-lg text-center sticky top-0 z-10 shadow flex justify-between items-center">
+            <span className="text-xs bg-red-700 px-2 py-1 rounded">Sheet Sync</span>
             <span>
               {tab === 'home' && '🏠 ホーム'}
               {tab === 'training' && (selectedExercise || '種目を選択')}
@@ -331,7 +348,7 @@
             </span>
             <button 
               onClick={toggleTheme} 
-              class="text-sm bg-red-700 p-1.5 rounded-full hover:bg-red-800 transition"
+              className="text-sm bg-red-700 p-1.5 rounded-full hover:bg-red-800 transition"
               title="テーマ切替"
             >
               {isDarkMode ? '🌙 夜' : '☀️ 昼'}
@@ -340,32 +357,32 @@
 
           {/* 通知 */}
           {sendSuccessMessage && (
-            <div class="bg-green-600 text-white text-xs font-bold p-2 text-center sticky top-14 z-20 shadow">
+            <div className="bg-green-600 text-white text-xs font-bold p-2 text-center sticky top-14 z-20 shadow">
               {sendSuccessMessage}
             </div>
           )}
 
           {/* メインエリア */}
-          <main class="p-4 flex-1">
+          <main className="p-4 flex-1">
             {/* 🏋️ トレーニング入力 */}
             {tab === 'training' && (
-              <div class="space-y-4">
-                <div class="flex justify-between items-center">
-                  <span class={`font-bold text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>部位・種目の選択</span>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <span className={`font-bold text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>部位・種目の選択</span>
                   <button 
                     onClick={() => setShowManageModal(true)}
-                    class="text-xs bg-red-600 text-white px-3 py-1.5 rounded-full font-bold shadow hover:bg-red-700 flex items-center gap-1"
+                    className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-full font-bold shadow hover:bg-red-700 flex items-center gap-1"
                   >
                     <span>⚙️</span> 追加・削除
                   </button>
                 </div>
 
-                <div class="flex gap-2 overflow-x-auto pb-1">
+                <div className="flex gap-2 overflow-x-auto pb-1">
                   {Object.keys(categories).map(cat => (
                     <button
                       key={cat}
                       onClick={() => setSelectedCategory(cat)}
-                      class={`px-4 py-1.5 text-xs font-bold rounded-full whitespace-nowrap border ${
+                      className={`px-4 py-1.5 text-xs font-bold rounded-full whitespace-nowrap border ${
                         selectedCategory === cat 
                           ? 'bg-red-600 text-white border-red-600' 
                           : isDarkMode 
@@ -379,11 +396,11 @@
                 </div>
 
                 <div>
-                  <label class={`block text-xs font-bold mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>種目</label>
+                  <label className={`block text-xs font-bold mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>種目</label>
                   <select 
                     value={selectedExercise} 
                     onChange={(e) => setSelectedExercise(e.target.value)}
-                    class={`w-full p-2.5 border rounded-lg text-sm font-bold ${inputClass}`}
+                    className={`w-full p-2.5 border rounded-lg text-sm font-bold ${inputClass}`}
                   >
                     {(categories[selectedCategory] || []).map(ex => (
                       <option key={ex} value={ex}>{ex}</option>
@@ -392,10 +409,10 @@
                 </div>
 
                 {setsData.map((set, idx) => (
-                  <div key={idx} class={`p-3 rounded-xl border shadow-sm space-y-2 ${cardClass}`}>
-                    <div class="flex items-center justify-between text-sm font-bold">
-                      <span class="bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">{idx + 1}</span>
-                      <div class="flex items-center gap-2">
+                  <div key={idx} className={`p-3 rounded-xl border shadow-sm space-y-2 ${cardClass}`}>
+                    <div className="flex items-center justify-between text-sm font-bold">
+                      <span className="bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">{idx + 1}</span>
+                      <div className="flex items-center gap-2">
                         <input 
                           type="number" 
                           placeholder="自重" 
@@ -404,9 +421,9 @@
                             const val = e.target.value;
                             setSetsData(prev => prev.map((item, i) => i === idx ? { ...item, weight: val } : item));
                           }}
-                          class={`w-20 p-1.5 border rounded text-center text-sm ${inputClass}`} 
+                          className={`w-20 p-1.5 border rounded text-center text-sm ${inputClass}`} 
                         />
-                        <span class="text-xs text-gray-400">kg</span>
+                        <span className="text-xs text-gray-400">kg</span>
                         <input 
                           type="number" 
                           placeholder="回数" 
@@ -415,9 +432,9 @@
                             const val = e.target.value;
                             setSetsData(prev => prev.map((item, i) => i === idx ? { ...item, reps: val } : item));
                           }}
-                          class={`w-20 p-1.5 border rounded text-center text-sm ${inputClass}`} 
+                          className={`w-20 p-1.5 border rounded text-center text-sm ${inputClass}`} 
                         />
-                        <span class="text-xs text-gray-400">回</span>
+                        <span className="text-xs text-gray-400">回</span>
                       </div>
                     </div>
                     <input 
@@ -428,7 +445,7 @@
                         const val = e.target.value;
                         setSetsData(prev => prev.map((item, i) => i === idx ? { ...item, memo: val } : item));
                       }}
-                      class={`w-full p-1.5 border rounded text-xs ${inputClass}`} 
+                      className={`w-full p-1.5 border rounded text-xs ${inputClass}`} 
                     />
                   </div>
                 ))}
@@ -436,7 +453,7 @@
                 <button 
                   onClick={handleSaveTraining} 
                   disabled={isSending}
-                  class="w-full py-3 bg-red-600 text-white font-bold rounded-xl shadow-md hover:bg-red-700 disabled:bg-gray-500"
+                  className="w-full py-3 bg-red-600 text-white font-bold rounded-xl shadow-md hover:bg-red-700 disabled:bg-gray-500"
                 >
                   {isSending ? '保存中...' : '記録を保存'}
                 </button>
@@ -445,18 +462,18 @@
 
             {/* 🏠 ホーム */}
             {tab === 'home' && (
-              <div class="space-y-4">
-                <div class={`p-4 rounded-xl border shadow-sm ${cardClass}`}>
-                  <h2 class="text-xs font-bold text-gray-400 mb-1">本日のトレーニング状況</h2>
-                  <p class="text-sm font-bold text-red-500">
+              <div className="space-y-4">
+                <div className={`p-4 rounded-xl border shadow-sm ${cardClass}`}>
+                  <h2 className="text-xs font-bold text-gray-400 mb-1">本日のトレーニング状況</h2>
+                  <p className="text-sm font-bold text-red-500">
                     {allLogs.filter(l => l.datetime && String(l.datetime).includes(new Date().toISOString().split('T')[0]) && l.type === '筋トレ').length} 件の記録あり
                   </p>
                 </div>
-                <div class="grid grid-cols-2 gap-2">
-                  <button onClick={() => setTab('training')} class="py-3 bg-red-600 text-white font-bold rounded-xl shadow text-sm">
+                <div className="grid grid-cols-2 gap-2">
+                  <button onClick={() => setTab('training')} className="py-3 bg-red-600 text-white font-bold rounded-xl shadow text-sm">
                     🏋️ 筋トレ入力
                   </button>
-                  <button onClick={() => setTab('history')} class="py-3 bg-gray-800 text-white font-bold rounded-xl shadow text-sm border border-gray-700">
+                  <button onClick={() => setTab('history')} className="py-3 bg-gray-800 text-white font-bold rounded-xl shadow text-sm border border-gray-700">
                     📅 日付で振り返る
                   </button>
                 </div>
@@ -465,66 +482,94 @@
 
             {/* 🩺 健康データ入力 */}
             {tab === 'health' && (
-              <div class={`space-y-4 text-sm p-4 rounded-xl border ${cardClass}`}>
-                <h2 class="font-bold border-b border-gray-700 pb-2 text-red-500">健康・血液検査データ</h2>
+              <div className={`space-y-4 text-sm p-4 rounded-xl border ${cardClass}`}>
+                <h2 className="font-bold border-b border-gray-700 pb-2 text-red-500">健康・血液検査データ</h2>
 
                 <div>
-                  <label class="text-xs font-bold text-gray-400">📅 検査日 / 測定日</label>
+                  <label className="text-xs font-bold text-gray-400">📅 検査日 / 測定日</label>
                   <input 
                     type="date" 
                     value={healthForm.testDate}
                     onChange={(e) => setHealthForm({ ...healthForm, testDate: e.target.value })}
-                    class={`w-full p-2 border rounded mt-1 text-xs font-bold ${inputClass}`} 
+                    className={`w-full p-2 border rounded mt-1 text-xs font-bold ${inputClass}`} 
                   />
                 </div>
 
-                <div class="space-y-2 border-t border-gray-800 pt-3">
-                  <span class="text-xs font-bold text-red-400">🩸 血糖値・HbA1c</span>
-                  <div class="grid grid-cols-2 gap-2">
+                <div className="space-y-2 border-t border-gray-800 pt-3">
+                  <span className="text-xs font-bold text-red-400">⚖️ 体重・体脂肪率</span>
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label class="text-xs text-gray-400">血糖値 (mg/dL)</label>
+                      <label className="text-xs text-gray-400">体重 (kg)</label>
+                      <input 
+                        type="number" 
+                        step="0.1"
+                        value={healthForm.weight}
+                        onChange={(e) => setHealthForm({ ...healthForm, weight: e.target.value })}
+                        className={`w-full p-2 border rounded mt-1 ${inputClass}`} 
+                        placeholder="68.0" 
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-400">体脂肪率 (%)</label>
+                      <input 
+                        type="number" 
+                        step="0.1" 
+                        value={healthForm.fat}
+                        onChange={(e) => setHealthForm({ ...healthForm, fat: e.target.value })}
+                        className={`w-full p-2 border rounded mt-1 ${inputClass}`} 
+                        placeholder="18.0" 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2 border-t border-gray-800 pt-3">
+                  <span className="text-xs font-bold text-red-400">🩸 血糖値・HbA1c</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-xs text-gray-400">血糖値 (mg/dL)</label>
                       <input 
                         type="number" 
                         value={healthForm.glucose}
                         onChange={(e) => setHealthForm({ ...healthForm, glucose: e.target.value })}
-                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
+                        className={`w-full p-2 border rounded mt-1 ${inputClass}`} 
                         placeholder="110" 
                       />
                     </div>
                     <div>
-                      <label class="text-xs text-gray-400">HbA1c (%)</label>
+                      <label className="text-xs text-gray-400">HbA1c (%)</label>
                       <input 
                         type="number" 
                         step="0.1" 
                         value={healthForm.hba1c}
                         onChange={(e) => setHealthForm({ ...healthForm, hba1c: e.target.value })}
-                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
+                        className={`w-full p-2 border rounded mt-1 ${inputClass}`} 
                         placeholder="6.5" 
                       />
                     </div>
                   </div>
                 </div>
 
-                <div class="space-y-2 border-t border-gray-800 pt-3">
-                  <span class="text-xs font-bold text-yellow-400">🧪 脂質パネル（コレステロール・中性脂肪）</span>
-                  <div class="grid grid-cols-2 gap-2">
+                <div className="space-y-2 border-t border-gray-800 pt-3">
+                  <span className="text-xs font-bold text-yellow-400">🧪 脂質パネル（コレステロール・中性脂肪）</span>
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label class="text-xs text-gray-400">総コレステロール</label>
+                      <label className="text-xs text-gray-400">総コレステロール</label>
                       <input 
                         type="number" 
                         value={healthForm.totalChol}
                         onChange={(e) => setHealthForm({ ...healthForm, totalChol: e.target.value })}
-                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
+                        className={`w-full p-2 border rounded mt-1 ${inputClass}`} 
                         placeholder="200" 
                       />
                     </div>
                     <div>
-                      <label class="text-xs text-gray-400">中性脂肪 (TG)</label>
+                      <label className="text-xs text-gray-400">中性脂肪 (TG)</label>
                       <input 
                         type="number" 
                         value={healthForm.triglycerides}
                         onChange={(e) => setHealthForm({ ...healthForm, triglycerides: e.target.value })}
-                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
+                        className={`w-full p-2 border rounded mt-1 ${inputClass}`} 
                         placeholder="150" 
                       />
                     </div>
@@ -534,7 +579,7 @@
                 <button 
                   onClick={handleSaveHealth} 
                   disabled={isSending}
-                  class="w-full py-3 bg-red-600 text-white font-bold rounded-xl shadow mt-2 disabled:bg-gray-500 hover:bg-red-700"
+                  className="w-full py-3 bg-red-600 text-white font-bold rounded-xl shadow mt-2 disabled:bg-gray-500 hover:bg-red-700"
                 >
                   {isSending ? '保存中...' : '健康データを保存'}
                 </button>
@@ -543,46 +588,47 @@
 
             {/* 📅 履歴・振り返り */}
             {tab === 'history' && (
-              <div class="space-y-4">
-                <div class={`p-4 rounded-xl border space-y-3 ${cardClass}`}>
-                  <label class="text-xs font-bold text-gray-400">日付を選択して記録を確認</label>
+              <div className="space-y-4">
+                <div className={`p-4 rounded-xl border space-y-3 ${cardClass}`}>
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold text-gray-400">日付を選択して記録を確認</label>
+                    <button 
+                      onClick={fetchLogsFromSheet}
+                      className="text-xs bg-red-600 text-white px-2.5 py-1 rounded font-bold hover:bg-red-700"
+                    >
+                      🔄 更新
+                    </button>
+                  </div>
                   <input 
                     type="date" 
                     value={selectedHistoryDate}
                     onChange={(e) => setSelectedHistoryDate(e.target.value)}
-                    class={`w-full p-2.5 border rounded-lg text-sm font-bold ${inputClass}`}
+                    className={`w-full p-2.5 border rounded-lg text-sm font-bold ${inputClass}`}
                   />
                 </div>
 
-                {filteredLogs.length === 0 ? (
-                  <div class="text-center py-8 text-xs text-gray-400">選択した日付の記録はありません</div>
+                {isLoadingLogs ? (
+                  <div className="text-center py-8 text-xs text-gray-400">スプレッドシートから読み込み中...</div>
+                ) : filteredLogs.length === 0 ? (
+                  <div className="text-center py-8 text-xs text-gray-400">選択した日付の記録はありません</div>
                 ) : (
-                  <div class="space-y-2">
+                  <div className="space-y-2">
                     {filteredLogs.map((log, index) => (
-                      <div key={index} class={`p-3 rounded-xl border text-xs space-y-1 relative ${cardClass}`}>
-                        <div class="flex justify-between items-center font-bold">
-                          <span class={`px-2 py-0.5 rounded text-[10px] ${
+                      <div key={index} className={`p-3 rounded-xl border text-xs space-y-1 relative ${cardClass}`}>
+                        <div className="flex justify-between items-center font-bold">
+                          <span className={`px-2 py-0.5 rounded text-[10px] ${
                             log.type === '筋トレ' ? 'bg-red-900 text-red-200' : 'bg-blue-900 text-blue-200'
                           }`}>
                             {log.type} - {log.category}
                           </span>
-                          <div class="flex items-center gap-2">
-                            <span class="text-gray-400 text-[10px]">{log.datetime}</span>
-                            <button 
-                              onClick={() => handleDeleteLog(allLogs.indexOf(log))}
-                              class="text-red-400 font-bold px-1 hover:text-red-600"
-                              title="記録を削除"
-                            >
-                              ✕
-                            </button>
-                          </div>
+                          <span className="text-gray-400 text-[10px]">{log.datetime}</span>
                         </div>
-                        <div class="font-bold text-sm pt-1">{log.detail}</div>
-                        <div class="flex gap-3 text-gray-300 font-bold">
-                          {log.val1 && <span class="text-red-400">{log.val1}</span>}
+                        <div className="font-bold text-sm pt-1">{log.detail}</div>
+                        <div className="flex gap-3 text-gray-300 font-bold">
+                          {log.val1 && <span className="text-red-400">{log.val1}</span>}
                           {log.val2 && <span>{log.val2}</span>}
                         </div>
-                        {log.memo && <div class="text-gray-400 italic text-[11px]">💬 {log.memo}</div>}
+                        {log.memo && <div className="text-gray-400 italic text-[11px]">💬 {log.memo}</div>}
                       </div>
                     ))}
                   </div>
@@ -592,14 +638,14 @@
 
             {/* 🤖 NotebookLM タブ */}
             {tab === 'notebooklm' && (
-              <div class={`p-5 rounded-xl border text-center space-y-4 ${cardClass}`}>
-                <div class="text-4xl">🤖</div>
-                <h2 class="font-bold text-base">NotebookLM でAI分析</h2>
+              <div className={`p-5 rounded-xl border text-center space-y-4 ${cardClass}`}>
+                <div className="text-4xl">🤖</div>
+                <h2 className="font-bold text-base">NotebookLM でAI分析</h2>
                 <a 
                   href="https://notebooklm.google.com/" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  class="inline-block w-full py-3 bg-red-600 text-white font-bold text-sm rounded-xl shadow-lg hover:bg-red-700 transition"
+                  className="inline-block w-full py-3 bg-red-600 text-white font-bold text-sm rounded-xl shadow-lg hover:bg-red-700 transition"
                 >
                   NotebookLM を開く ↗
                 </a>
@@ -609,54 +655,78 @@
 
           {/* 管理モーダル */}
           {showManageModal && (
-            <div class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-              <div class={`rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-xl max-h-[85vh] overflow-y-auto ${cardClass}`}>
-                <div class="flex justify-between items-center border-b border-gray-700 pb-2">
-                  <h3 class="font-bold text-base">部位・種目の管理</h3>
-                  <button onClick={() => setShowManageModal(false)} class="text-gray-400 font-bold text-lg">×</button>
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
+              <div className={`rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-xl max-h-[85vh] overflow-y-auto ${cardClass}`}>
+                <div className="flex justify-between items-center border-b border-gray-700 pb-2">
+                  <h3 className="font-bold text-base">部位・種目の管理</h3>
+                  <button onClick={() => setShowManageModal(false)} className="text-gray-400 font-bold text-lg">×</button>
                 </div>
                 
-                <div class="space-y-2">
-                  <label class="text-xs font-bold text-gray-400">① 部位の追加</label>
-                  <div class="flex gap-2">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-400">① 部位の追加</label>
+                  <div className="flex gap-2">
                     <input 
                       type="text" 
                       placeholder="例: 肩, 腕" 
                       value={newCategoryName} 
                       onChange={(e) => setNewCategoryName(e.target.value)}
-                      class={`flex-1 p-2 border rounded text-xs ${inputClass}`}
+                      className={`flex-1 p-2 border rounded text-xs ${inputClass}`}
                     />
-                    <button onClick={handleAddCategory} class="bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold">追加</button>
+                    <button onClick={handleAddCategory} className="bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold">追加</button>
                   </div>
                 </div>
 
-                <hr class="border-gray-700" />
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-400">登録済み部位の削除</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.keys(categories).map(cat => (
+                      <span key={cat} className="inline-flex items-center gap-1 bg-gray-800 text-gray-200 px-2 py-1 rounded text-xs">
+                        {cat}
+                        <button onClick={() => handleDeleteCategory(cat)} className="text-red-400 hover:text-red-200 font-bold">×</button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
 
-                <div class="space-y-2">
-                  <label class="text-xs font-bold text-gray-400">② 種目の追加</label>
+                <hr className="border-gray-700" />
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-400">② 種目の追加</label>
                   <select 
                     value={targetCategoryForNewEx} 
                     onChange={(e) => setTargetCategoryForNewEx(e.target.value)}
-                    class={`w-full p-2 border rounded text-xs font-bold ${inputClass}`}
+                    className={`w-full p-2 border rounded text-xs font-bold ${inputClass}`}
                   >
                     {Object.keys(categories).map(cat => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
                   </select>
 
-                  <div class="flex gap-2">
+                  <div className="flex gap-2">
                     <input 
                       type="text" 
                       placeholder="例: サイドレイズ" 
                       value={newExerciseName} 
                       onChange={(e) => setNewExerciseName(e.target.value)}
-                      class={`flex-1 p-2 border rounded text-xs ${inputClass}`}
+                      className={`flex-1 p-2 border rounded text-xs ${inputClass}`}
                     />
-                    <button onClick={handleAddExercise} class="bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold">追加</button>
+                    <button onClick={handleAddExercise} className="bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold">追加</button>
                   </div>
                 </div>
 
-                <button onClick={() => setShowManageModal(false)} class="w-full bg-gray-700 text-white py-2 rounded-xl text-xs font-bold">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-400">種目の削除 (選択中部位)</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(categories[targetCategoryForNewEx] || []).map(ex => (
+                      <span key={ex} className="inline-flex items-center gap-1 bg-gray-800 text-gray-200 px-2 py-1 rounded text-xs">
+                        {ex}
+                        <button onClick={() => handleDeleteExercise(targetCategoryForNewEx, ex)} className="text-red-400 hover:text-red-200 font-bold">×</button>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <button onClick={() => setShowManageModal(false)} className="w-full bg-gray-700 text-white py-2 rounded-xl text-xs font-bold">
                   閉じる
                 </button>
               </div>
@@ -664,20 +734,20 @@
           )}
 
           {/* 下部ナビゲーション */}
-          <nav class={`fixed bottom-0 left-0 right-0 max-w-md mx-auto border-t flex justify-around p-2 text-xs z-10 ${navClass}`}>
-            <button onClick={() => setTab('home')} class={`flex flex-col items-center ${tab === 'home' ? 'text-red-500 font-bold' : ''}`}>
+          <nav className={`fixed bottom-0 left-0 right-0 max-w-md mx-auto border-t flex justify-around p-2 text-xs z-10 ${navClass}`}>
+            <button onClick={() => setTab('home')} className={`flex flex-col items-center ${tab === 'home' ? 'text-red-500 font-bold' : ''}`}>
               <span>🏠</span>ホーム
             </button>
-            <button onClick={() => setTab('training')} class={`flex flex-col items-center ${tab === 'training' ? 'text-red-500 font-bold' : ''}`}>
+            <button onClick={() => setTab('training')} className={`flex flex-col items-center ${tab === 'training' ? 'text-red-500 font-bold' : ''}`}>
               <span>🏋️</span>筋トレ
             </button>
-            <button onClick={() => setTab('history')} class={`flex flex-col items-center ${tab === 'history' ? 'text-red-500 font-bold' : ''}`}>
+            <button onClick={() => setTab('history')} className={`flex flex-col items-center ${tab === 'history' ? 'text-red-500 font-bold' : ''}`}>
               <span>📅</span>履歴
             </button>
-            <button onClick={() => setTab('health')} class={`flex flex-col items-center ${tab === 'health' ? 'text-red-500 font-bold' : ''}`}>
+            <button onClick={() => setTab('health')} className={`flex flex-col items-center ${tab === 'health' ? 'text-red-500 font-bold' : ''}`}>
               <span>🩺</span>健康
             </button>
-            <button onClick={() => setTab('notebooklm')} class={`flex flex-col items-center ${tab === 'notebooklm' ? 'text-red-500 font-bold' : ''}`}>
+            <button onClick={() => setTab('notebooklm')} className={`flex flex-col items-center ${tab === 'notebooklm' ? 'text-red-500 font-bold' : ''}`}>
               <span>🤖</span>AI
             </button>
           </nav>
