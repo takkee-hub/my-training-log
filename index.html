@@ -1,32 +1,31 @@
 import React, { useState, useEffect } from 'react';
 
-// スプレッドシートの公開CSV URLなどを想定
+// スプレッドシートの公開CSV URLなどを設定してください
 const SHEET_CSV_URL = 'YOUR_GOOGLE_SPREADSHEET_CSV_URL_HERE';
 
 export function HistoryViewer() {
   const [historyData, setHistoryData] = useState([]);
   const [selectedHistoryDate, setSelectedHistoryDate] = useState(
-    new Date().toISOString().split('T')[0] // 初期値: 本日の日付 (YYYY-MM-DD)
+    // デフォルトで今日の日付 (YYYY-MM-DD) を設定
+    new Date().toISOString().split('T')[0]
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // CSVをパースするヘルパー関数
+  // CSVをパースする関数
   const parseCSV = (text) => {
     const lines = text.split(/\r\n|\n/);
     return lines
-      .filter((line) => line.trim() !== '') // 空行を除外
+      .filter((line) => line.trim() !== '')
       .map((line) => {
-        // カンマ区切り（ダブルクォーテーション内のカンマを考慮）
         const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map((col) => {
-          // 前後のダブルクォーテーションを除去し、エスケープされた""を"に戻す
           return col.replace(/^"|"$/g, '').replace(/""/g, '"').trim();
         });
         return cols;
       });
   };
 
-  // 日付文字列を YYYYMMDD 形式に正規化する関数
+  // 日付文字列を比較しやすい YYYYMMDD 形式の文字列に変換する関数
   const normalizeDateStr = (str) => {
     if (!str) return '';
     // スラッシュ、ハイフン、スペースなどで分割
@@ -37,11 +36,10 @@ export function HistoryViewer() {
       const d = parts[2].padStart(2, '0');
       return `${y}${m}${d}`;
     }
-    // うまく分割できない場合は数字のみ抽出
     return str.replace(/[^0-9]/g, '');
   };
 
-  // スプレッドシートからCSVデータを取得
+  // スプレッドシートからCSVを取得
   const fetchHistory = async () => {
     setLoading(true);
     setError(null);
@@ -53,13 +51,15 @@ export function HistoryViewer() {
       const csvText = await response.text();
       const parsedRows = parseCSV(csvText);
 
-      // 例: 1行目がヘッダーの場合、2行目以降をデータとしてマッピング
-      // データの構造に合わせてインデックス（例: [0]が日時, [1]が内容など）を調整してください
+      // 1行目はヘッダーなので slice(1) で除外
+      // スクリーンショットの列構造にマッピング
       const formattedData = parsedRows.slice(1).map((cols) => ({
-        datetime: cols[0] || '',
-        title: cols[1] || '',
-        description: cols[2] || '',
-        // 必要に応じて他のカラムも追加
+        datetime: cols[0] || '',       // A列: 日時
+        type: cols[1] || '',           // B列: タイプ (筋トレ、糖尿病など)
+        category: cols[2] || '',       // C列: 部位/項目 (脚、胸など)
+        detail: cols[3] || '',         // D列: 種目/詳細
+        value1: cols[4] || '',         // E列: 数値1
+        value2: cols[5] || '',         // F列: 数値2
       }));
 
       setHistoryData(formattedData);
@@ -79,65 +79,69 @@ export function HistoryViewer() {
   const filteredHistory = historyData.filter((log) => {
     const logNormalized = normalizeDateStr(log.datetime);
     const selectedNormalized = normalizeDateStr(selectedHistoryDate);
-    
-    // 日付部分が完全に一致するか判定
     return logNormalized === selectedNormalized;
   });
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
-      <h2>履歴確認</h2>
+    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '800px', margin: '0 auto' }}>
+      <h2>記録履歴一覧</h2>
 
       {/* 日付選択コントロール */}
-      <div style={{ marginBottom: '20px' }}>
-        <label htmlFor="history-date" style={{ marginRight: '10px' }}>
-          表示する日付を選択:
+      <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <label htmlFor="history-date" style={{ fontWeight: 'bold' }}>
+          表示日:
         </label>
         <input
           id="history-date"
           type="date"
           value={selectedHistoryDate}
           onChange={(e) => setSelectedHistoryDate(e.target.value)}
-          style={{ padding: '5px', fontSize: '1rem' }}
+          style={{ padding: '6px', fontSize: '1rem' }}
         />
         <button 
           onClick={fetchHistory} 
-          style={{ marginLeft: '10px', padding: '6px 12px' }}
+          style={{ padding: '6px 14px', cursor: 'pointer' }}
         >
-          データを更新
+          データを再読み込み
         </button>
       </div>
 
       {/* ローディング・エラー表示 */}
-      {loading && <p>読み込み中...</p>}
+      {loading && <p>データを読み込んでいます...</p>}
       {error && <p style={{ color: 'red' }}>エラー: {error}</p>}
 
       {/* 履歴リストの表示 */}
       {!loading && !error && (
         <div>
-          <h3>{selectedHistoryDate} の履歴 ({filteredHistory.length}件)</h3>
+          <h3>{selectedHistoryDate} の記録 ({filteredHistory.length}件)</h3>
           {filteredHistory.length === 0 ? (
-            <p>該当する履歴はありません。</p>
+            <p style={{ color: '#666' }}>選択された日付の履歴はありません。</p>
           ) : (
             <ul style={{ listStyleType: 'none', padding: 0 }}>
               {filteredHistory.map((item, index) => (
                 <li
                   key={index}
                   style={{
-                    border: '1px solid #ddd',
-                    borderRadius: '6px',
-                    padding: '12px',
-                    marginBottom: '10px',
-                    backgroundColor: '#f9f9f9',
+                    border: '1px solid #e0e0e0',
+                    borderRadius: '8px',
+                    padding: '14px',
+                    marginBottom: '12px',
+                    backgroundColor: '#fff',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
                   }}
                 >
-                  <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '4px' }}>
-                    {item.datetime}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px', fontSize: '0.9rem', color: '#555' }}>
+                    <span>🕒 {item.datetime}</span>
+                    <span style={{ backgroundColor: '#eef2f7', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold', color: '#333' }}>
+                      {item.type}
+                    </span>
                   </div>
-                  <div style={{ fontWeight: 'bold', fontSize: '1.1rem', marginBottom: '4px' }}>
-                    {item.title}
+                  <div style={{ fontSize: '1.05rem', fontWeight: 'bold', marginBottom: '4px', color: '#222' }}>
+                    {item.category}：{item.detail}
                   </div>
-                  <div>{item.description}</div>
+                  <div style={{ fontSize: '1rem', color: '#0066cc', fontWeight: '500' }}>
+                    {item.value1} {item.value2 && `/ ${item.value2}`}
+                  </div>
                 </li>
               ))}
             </ul>
