@@ -75,10 +75,13 @@
         memo: ''
       });
 
-      // 履歴確認用
+      // 履歴データ（LocalStorage保持）
+      const [allLogs, setAllLogs] = useState(() => {
+        const savedLogs = localStorage.getItem('app_logs_history');
+        return savedLogs ? JSON.parse(savedLogs) : [];
+      });
+
       const [selectedHistoryDate, setSelectedHistoryDate] = useState(new Date().toISOString().split('T')[0]);
-      const [allLogs, setAllLogs] = useState([]);
-      const [isLoadingLogs, setIsLoadingLogs] = useState(false);
 
       // 管理モーダル
       const [showManageModal, setShowManageModal] = useState(false);
@@ -98,57 +101,30 @@
         localStorage.setItem('app_categories', JSON.stringify(categories));
       }, [categories]);
 
-      // JSONP方式でGASからデータを安定取得する
-      const fetchLogs = () => {
-        setIsLoadingLogs(true);
-        const callbackName = 'handleGasLogsResponse_' + Math.floor(Math.random() * 100000);
-        
-        window[callbackName] = (data) => {
-          if (Array.isArray(data)) {
-            setAllLogs(data);
-          }
-          setIsLoadingLogs(false);
-          delete window[callbackName];
-          if (script.parentNode) {
-            script.parentNode.removeChild(script);
-          }
-        };
-
-        const script = document.createElement('script');
-        script.src = `${GAS_WEBAPP_URL}?callback=${callbackName}`;
-        script.onerror = () => {
-          setIsLoadingLogs(false);
-          console.error("履歴データの取得に失敗しました");
-        };
-        document.body.appendChild(script);
-      };
-
       useEffect(() => {
-        fetchLogs();
-      }, []);
+        localStorage.setItem('app_logs_history', JSON.stringify(allLogs));
+      }, [allLogs]);
 
-      // データ保存
-      const sendToGoogleSheets = async (payload) => {
+      // ログ追加（ローカル保存 ＋ GASバックアップ送信）
+      const saveLogItem = async (logItem) => {
+        setAllLogs(prev => [logItem, ...prev]);
+
         setIsSending(true);
-        setSendSuccessMessage('');
         try {
           await fetch(GAS_WEBAPP_URL, {
             method: 'POST',
             mode: 'no-cors',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(logItem)
           });
-          setSendSuccessMessage('保存しました！');
-          setTimeout(() => setSendSuccessMessage(''), 3000);
-          setTimeout(fetchLogs, 1500); // 1.5秒後に履歴を自動更新
         } catch (err) {
-          alert('送信エラーが発生しました: ' + err.toString());
+          console.error("GAS送信エラー:", err);
         } finally {
           setIsSending(false);
         }
       };
 
-      // 筋トレ保存
+      // 筋トレ保存（重さ空欄のときは「自重」と判定）
       const handleSaveTraining = async () => {
         if (!selectedExercise) {
           alert('種目を選択してください');
@@ -160,23 +136,30 @@
 
         for (let i = 0; i < setsData.length; i++) {
           const setItem = setsData[i];
-          if (setItem.weight || setItem.reps) {
-            await sendToGoogleSheets({
+          // 重さまたは回数が入力されている場合
+          if (setItem.weight !== '' || setItem.reps !== '') {
+            // 重さが空欄（または未入力）の場合は「自重」とする
+            const weightVal = setItem.weight ? `${setItem.weight} kg` : '自重';
+
+            const logPayload = {
               datetime: todayStr,
               type: '筋トレ',
               category: selectedCategory,
               detail: `${selectedExercise} (${i + 1}セット目)`,
-              val1: setItem.weight ? `${setItem.weight} kg` : '',
+              val1: weightVal,
               val2: setItem.reps ? `${setItem.reps} 回` : '',
               memo: setItem.memo || ''
-            });
+            };
+            await saveLogItem(logPayload);
             savedCount++;
           }
         }
 
         if (savedCount === 0) {
-          alert('重さまたは回数を入力してください');
+          alert('回数または重さを入力してください');
         } else {
+          setSendSuccessMessage('保存しました！');
+          setTimeout(() => setSendSuccessMessage(''), 3000);
           setSetsData([
             { weight: '', reps: '', memo: '' },
             { weight: '', reps: '', memo: '' },
@@ -191,7 +174,7 @@
         let hasData = false;
 
         if (healthForm.glucose) {
-          await sendToGoogleSheets({
+          await saveLogItem({
             datetime: datetimeStr,
             type: '糖尿病',
             category: '血糖値',
@@ -204,7 +187,7 @@
         }
 
         if (healthForm.hba1c) {
-          await sendToGoogleSheets({
+          await saveLogItem({
             datetime: datetimeStr,
             type: '糖尿病',
             category: 'HbA1c',
@@ -217,7 +200,7 @@
         }
 
         if (healthForm.totalChol || healthForm.hdl || healthForm.ldl || healthForm.triglycerides) {
-          await sendToGoogleSheets({
+          await saveLogItem({
             datetime: datetimeStr,
             type: '血液検査',
             category: '脂質パネル',
@@ -234,7 +217,7 @@
         }
 
         if (healthForm.weight || healthForm.fat) {
-          await sendToGoogleSheets({
+          await saveLogItem({
             datetime: datetimeStr,
             type: '体組成',
             category: '体重・体脂肪',
@@ -249,6 +232,8 @@
         if (!hasData) {
           alert('少なくとも1つの項目を入力してください');
         } else {
+          setSendSuccessMessage('保存しました！');
+          setTimeout(() => setSendSuccessMessage(''), 3000);
           setHealthForm({
             testDate: new Date().toISOString().split('T')[0],
             glucose: '',
@@ -314,13 +299,19 @@
         }));
       };
 
-      // 日付に一致するログを抽出
+      // 履歴削除
+      const handleDeleteLog = (indexToDelete) => {
+        if (!confirm('この記録を削除しますか？')) return;
+        setAllLogs(prev => prev.filter((_, idx) => idx !== indexToDelete));
+      };
+
+      // 日付一致ログ抽出
       const filteredLogs = allLogs.filter(log => {
         if (!log.datetime) return false;
         return String(log.datetime).includes(selectedHistoryDate);
       });
 
-      // テーマカラー設定
+      // テーマ配色
       const themeClass = isDarkMode ? 'bg-gray-950 text-gray-100' : 'bg-gray-100 text-gray-800';
       const cardClass = isDarkMode ? 'bg-gray-900 border-gray-800 text-white' : 'bg-white border-gray-200 text-gray-800';
       const inputClass = isDarkMode ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-300 text-gray-800';
@@ -407,7 +398,7 @@
                       <div class="flex items-center gap-2">
                         <input 
                           type="number" 
-                          placeholder="重さ" 
+                          placeholder="自重" 
                           value={set.weight}
                           onChange={(e) => {
                             const val = e.target.value;
@@ -554,15 +545,7 @@
             {tab === 'history' && (
               <div class="space-y-4">
                 <div class={`p-4 rounded-xl border space-y-3 ${cardClass}`}>
-                  <div class="flex justify-between items-center">
-                    <label class="text-xs font-bold text-gray-400">日付を選択して記録を確認</label>
-                    <button 
-                      onClick={fetchLogs} 
-                      class="text-xs bg-gray-800 border border-gray-700 px-2 py-1 rounded hover:bg-gray-700"
-                    >
-                      🔄 更新
-                    </button>
-                  </div>
+                  <label class="text-xs font-bold text-gray-400">日付を選択して記録を確認</label>
                   <input 
                     type="date" 
                     value={selectedHistoryDate}
@@ -571,25 +554,32 @@
                   />
                 </div>
 
-                {isLoadingLogs ? (
-                  <div class="text-center py-8 text-xs text-gray-400">スプレッドシートから読み込み中...</div>
-                ) : filteredLogs.length === 0 ? (
+                {filteredLogs.length === 0 ? (
                   <div class="text-center py-8 text-xs text-gray-400">選択した日付の記録はありません</div>
                 ) : (
                   <div class="space-y-2">
                     {filteredLogs.map((log, index) => (
-                      <div key={index} class={`p-3 rounded-xl border text-xs space-y-1 ${cardClass}`}>
+                      <div key={index} class={`p-3 rounded-xl border text-xs space-y-1 relative ${cardClass}`}>
                         <div class="flex justify-between items-center font-bold">
                           <span class={`px-2 py-0.5 rounded text-[10px] ${
                             log.type === '筋トレ' ? 'bg-red-900 text-red-200' : 'bg-blue-900 text-blue-200'
                           }`}>
                             {log.type} - {log.category}
                           </span>
-                          <span class="text-gray-400 text-[10px]">{log.datetime}</span>
+                          <div class="flex items-center gap-2">
+                            <span class="text-gray-400 text-[10px]">{log.datetime}</span>
+                            <button 
+                              onClick={() => handleDeleteLog(allLogs.indexOf(log))}
+                              class="text-red-400 font-bold px-1 hover:text-red-600"
+                              title="記録を削除"
+                            >
+                              ✕
+                            </button>
+                          </div>
                         </div>
                         <div class="font-bold text-sm pt-1">{log.detail}</div>
-                        <div class="flex gap-3 text-gray-300">
-                          {log.val1 && <span>{log.val1}</span>}
+                        <div class="flex gap-3 text-gray-300 font-bold">
+                          {log.val1 && <span class="text-red-400">{log.val1}</span>}
                           {log.val2 && <span>{log.val2}</span>}
                         </div>
                         {log.memo && <div class="text-gray-400 italic text-[11px]">💬 {log.memo}</div>}
