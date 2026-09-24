@@ -44,15 +44,21 @@ export function HistoryViewer() {
     setLoading(true);
     setError(null);
     try {
+      console.log("【デバッグ】スプレッドシートから取得開始:", SHEET_CSV_URL);
       const response = await fetch(SHEET_CSV_URL);
+      
+      console.log("【デバッグ】レスポンス状態:", response.status, response.ok);
       if (!response.ok) {
         throw new Error('スプレッドシートからのデータ取得に失敗しました。');
       }
+      
       const csvText = await response.text();
+      console.log("【デバッグ】取得したCSVの最初の100文字:", csvText.substring(0, 100));
+
       const parsedRows = parseCSV(csvText);
+      console.log("【デバッグ】パースされた総行数:", parsedRows.length);
 
       // 1行目はヘッダーなので slice(1) で除外
-      // スクリーンショットの列構造にマッピング
       const formattedData = parsedRows.slice(1).map((cols) => ({
         datetime: cols[0] || '',       // A列: 日時
         type: cols[1] || '',           // B列: タイプ (筋トレ、糖尿病など)
@@ -62,9 +68,10 @@ export function HistoryViewer() {
         value2: cols[5] || '',         // F列: 数値2
       }));
 
+      console.log("【デバッグ】整形された全データ:", formattedData);
       setHistoryData(formattedData);
     } catch (err) {
-      console.error(err);
+      console.error("【デバッグエラー】", err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -79,8 +86,14 @@ export function HistoryViewer() {
   const filteredHistory = historyData.filter((log) => {
     const logNormalized = normalizeDateStr(log.datetime);
     const selectedNormalized = normalizeDateStr(selectedHistoryDate);
+    
+    // どのデータがどう比較されているかを確認するログ
+    console.log(`【日付比較】 スプレッドシート側: "${log.datetime}" (変換後: ${logNormalized}) vs 選択日: "${selectedHistoryDate}" (変換後: ${selectedNormalized}) => 一致: ${logNormalized === selectedNormalized}`);
+
     return logNormalized === selectedNormalized;
   });
+
+  console.log("【デバッグ】フィルター後の表示データ数:", filteredHistory.length);
 
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '800px', margin: '0 auto' }}>
