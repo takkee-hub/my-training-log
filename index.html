@@ -63,10 +63,15 @@
         { weight: '', reps: '', memo: '' }
       ]);
 
-      // 健康データ
+      // 健康データ（検査日・コレステロール・中性脂肪を追加）
       const [healthForm, setHealthForm] = useState({
+        testDate: new Date().toISOString().split('T')[0],
         glucose: '',
         hba1c: '',
+        totalChol: '',
+        hdl: '',
+        ldl: '',
+        triglycerides: '',
         weight: '',
         fat: '',
         timing: '食後2時間',
@@ -150,12 +155,13 @@
 
       // 健康データ保存
       const handleSaveHealth = async () => {
-        const now = new Date().toLocaleString('ja-JP');
+        const datetimeStr = healthForm.testDate ? `${healthForm.testDate}` : new Date().toLocaleDateString('ja-JP');
         let hasData = false;
 
+        // 血糖値
         if (healthForm.glucose) {
           await sendToGoogleSheets({
-            datetime: now,
+            datetime: datetimeStr,
             type: '糖尿病',
             category: '血糖値',
             detail: healthForm.timing,
@@ -166,12 +172,13 @@
           hasData = true;
         }
 
+        // HbA1c
         if (healthForm.hba1c) {
           await sendToGoogleSheets({
-            datetime: now,
+            datetime: datetimeStr,
             type: '糖尿病',
             category: 'HbA1c',
-            detail: '定期測定',
+            detail: '血液検査',
             val1: `${healthForm.hba1c} %`,
             val2: '',
             memo: healthForm.memo
@@ -179,9 +186,28 @@
           hasData = true;
         }
 
+        // コレステロール・脂質類
+        if (healthForm.totalChol || healthForm.hdl || healthForm.ldl || healthForm.triglycerides) {
+          await sendToGoogleSheets({
+            datetime: datetimeStr,
+            type: '血液検査',
+            category: '脂質パネル',
+            detail: 'コレステロール・中性脂肪',
+            val1: [
+              healthForm.totalChol ? `総コレ: ${healthForm.totalChol}` : '',
+              healthForm.ldl ? `LDL: ${healthForm.ldl}` : '',
+              healthForm.hdl ? `HDL: ${healthForm.hdl}` : ''
+            ].filter(Boolean).join(' / '),
+            val2: healthForm.triglycerides ? `中性脂肪: ${healthForm.triglycerides} mg/dL` : '',
+            memo: healthForm.memo
+          });
+          hasData = true;
+        }
+
+        // 体重・体脂肪
         if (healthForm.weight || healthForm.fat) {
           await sendToGoogleSheets({
-            datetime: now,
+            datetime: datetimeStr,
             type: '体組成',
             category: '体重・体脂肪',
             detail: '測定',
@@ -195,7 +221,19 @@
         if (!hasData) {
           alert('少なくとも1つの項目を入力してください');
         } else {
-          setHealthForm({ glucose: '', hba1c: '', weight: '', fat: '', timing: '食後2時間', memo: '' });
+          setHealthForm({
+            testDate: new Date().toISOString().split('T')[0],
+            glucose: '',
+            hba1c: '',
+            totalChol: '',
+            hdl: '',
+            ldl: '',
+            triglycerides: '',
+            weight: '',
+            fat: '',
+            timing: '食後2時間',
+            memo: ''
+          });
         }
       };
 
@@ -263,7 +301,7 @@
             <span>
               {tab === 'home' && '🏠 ホーム'}
               {tab === 'training' && (selectedExercise || '種目を選択')}
-              {tab === 'health' && '🩺 健康データ'}
+              {tab === 'health' && '🩺 健康・検査データ'}
               {tab === 'notebooklm' && '🤖 NotebookLM'}
             </span>
             {/* 🌙/☀️ テーマ切り替えボタン */}
@@ -401,97 +439,167 @@
                     🏋️ 筋トレ入力
                   </button>
                   <button onClick={() => setTab('health')} class="py-3 bg-gray-800 text-white font-bold rounded-xl shadow text-sm border border-gray-700">
-                    🩺 健康入力
+                    🩺 健康・検査入力
                   </button>
                 </div>
               </div>
             )}
 
-            {/* 🩺 健康データ */}
+            {/* 🩺 健康・検査データ */}
             {tab === 'health' && (
-              <div class={`space-y-3 text-sm p-4 rounded-xl border ${cardClass}`}>
-                <h2 class="font-bold border-b border-gray-700 pb-2 text-red-500">糖尿病・健康データ管理</h2>
-                
+              <div class={`space-y-4 text-sm p-4 rounded-xl border ${cardClass}`}>
+                <h2 class="font-bold border-b border-gray-700 pb-2 text-red-500 flex justify-between items-center">
+                  <span>健康・血液検査データ</span>
+                </h2>
+
+                {/* 検査日・測定日 */}
                 <div>
-                  <label class="text-xs font-bold text-gray-400">測定タイミング</label>
-                  <select 
-                    value={healthForm.timing}
-                    onChange={(e) => setHealthForm({ ...healthForm, timing: e.target.value })}
-                    class={`w-full p-2 border rounded mt-1 text-xs font-bold ${inputClass}`}
-                  >
-                    <option value="空腹時">空腹時</option>
-                    <option value="食後1時間">食後1時間</option>
-                    <option value="食後2時間">食後2時間</option>
-                    <option value="就寝前">就寝前</option>
-                  </select>
+                  <label class="text-xs font-bold text-gray-400">📅 検査日 / 測定日</label>
+                  <input 
+                    type="date" 
+                    value={healthForm.testDate}
+                    onChange={(e) => setHealthForm({ ...healthForm, testDate: e.target.value })}
+                    class={`w-full p-2 border rounded mt-1 text-xs font-bold ${inputClass}`} 
+                  />
                 </div>
 
-                <div class="grid grid-cols-2 gap-2">
-                  <div>
-                    <label class="text-xs font-bold text-gray-400">血糖値 (mg/dL)</label>
-                    <input 
-                      type="number" 
-                      value={healthForm.glucose}
-                      onChange={(e) => setHealthForm({ ...healthForm, glucose: e.target.value })}
-                      class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
-                      placeholder="110" 
-                    />
+                {/* 1. 糖尿病関連 */}
+                <div class="space-y-2 border-t border-gray-800 pt-3">
+                  <span class="text-xs font-bold text-red-400">🩸 血糖値・HbA1c</span>
+                  <div class="grid grid-cols-2 gap-2">
+                    <div>
+                      <label class="text-xs text-gray-400">血糖値 (mg/dL)</label>
+                      <input 
+                        type="number" 
+                        value={healthForm.glucose}
+                        onChange={(e) => setHealthForm({ ...healthForm, glucose: e.target.value })}
+                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
+                        placeholder="110" 
+                      />
+                    </div>
+                    <div>
+                      <label class="text-xs text-gray-400">HbA1c (%)</label>
+                      <input 
+                        type="number" 
+                        step="0.1" 
+                        value={healthForm.hba1c}
+                        onChange={(e) => setHealthForm({ ...healthForm, hba1c: e.target.value })}
+                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
+                        placeholder="6.5" 
+                      />
+                    </div>
                   </div>
                   <div>
-                    <label class="text-xs font-bold text-gray-400">HbA1c (%)</label>
-                    <input 
-                      type="number" 
-                      step="0.1" 
-                      value={healthForm.hba1c}
-                      onChange={(e) => setHealthForm({ ...healthForm, hba1c: e.target.value })}
-                      class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
-                      placeholder="6.5" 
-                    />
-                  </div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-2">
-                  <div>
-                    <label class="text-xs font-bold text-gray-400">体重 (kg)</label>
-                    <input 
-                      type="number" 
-                      step="0.1" 
-                      value={healthForm.weight}
-                      onChange={(e) => setHealthForm({ ...healthForm, weight: e.target.value })}
-                      class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
-                      placeholder="68.0" 
-                    />
-                  </div>
-                  <div>
-                    <label class="text-xs font-bold text-gray-400">体脂肪率 (%)</label>
-                    <input 
-                      type="number" 
-                      step="0.1" 
-                      value={healthForm.fat}
-                      onChange={(e) => setHealthForm({ ...healthForm, fat: e.target.value })}
-                      class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
-                      placeholder="18.5" 
-                    />
+                    <label class="text-xs text-gray-400">血糖値の測定タイミング</label>
+                    <select 
+                      value={healthForm.timing}
+                      onChange={(e) => setHealthForm({ ...healthForm, timing: e.target.value })}
+                      class={`w-full p-2 border rounded mt-1 text-xs ${inputClass}`}
+                    >
+                      <option value="空腹時">空腹時</option>
+                      <option value="食後1時間">食後1時間</option>
+                      <option value="食後2時間">食後2時間</option>
+                      <option value="就寝前">就寝前</option>
+                    </select>
                   </div>
                 </div>
 
-                <div>
-                  <label class="text-xs font-bold text-gray-400">メモ（食事内容や体調）</label>
+                {/* 2. 脂質（コレステロール・中性脂肪） */}
+                <div class="space-y-2 border-t border-gray-800 pt-3">
+                  <span class="text-xs font-bold text-yellow-400">🧪 脂質パネル（コレステロール・中性脂肪）</span>
+                  <div class="grid grid-cols-2 gap-2">
+                    <div>
+                      <label class="text-xs text-gray-400">総コレステロール</label>
+                      <input 
+                        type="number" 
+                        value={healthForm.totalChol}
+                        onChange={(e) => setHealthForm({ ...healthForm, totalChol: e.target.value })}
+                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
+                        placeholder="200" 
+                      />
+                    </div>
+                    <div>
+                      <label class="text-xs text-gray-400">中性脂肪 (TG)</label>
+                      <input 
+                        type="number" 
+                        value={healthForm.triglycerides}
+                        onChange={(e) => setHealthForm({ ...healthForm, triglycerides: e.target.value })}
+                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
+                        placeholder="150" 
+                      />
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <div>
+                      <label class="text-xs text-gray-400">LDLコレステロール (悪玉)</label>
+                      <input 
+                        type="number" 
+                        value={healthForm.ldl}
+                        onChange={(e) => setHealthForm({ ...healthForm, ldl: e.target.value })}
+                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
+                        placeholder="120" 
+                      />
+                    </div>
+                    <div>
+                      <label class="text-xs text-gray-400">HDLコレステロール (善玉)</label>
+                      <input 
+                        type="number" 
+                        value={healthForm.hdl}
+                        onChange={(e) => setHealthForm({ ...healthForm, hdl: e.target.value })}
+                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
+                        placeholder="55" 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. 体重・体脂肪 */}
+                <div class="space-y-2 border-t border-gray-800 pt-3">
+                  <span class="text-xs font-bold text-blue-400">⚖️ 体重・体脂肪</span>
+                  <div class="grid grid-cols-2 gap-2">
+                    <div>
+                      <label class="text-xs text-gray-400">体重 (kg)</label>
+                      <input 
+                        type="number" 
+                        step="0.1" 
+                        value={healthForm.weight}
+                        onChange={(e) => setHealthForm({ ...healthForm, weight: e.target.value })}
+                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
+                        placeholder="68.0" 
+                      />
+                    </div>
+                    <div>
+                      <label class="text-xs text-gray-400">体脂肪率 (%)</label>
+                      <input 
+                        type="number" 
+                        step="0.1" 
+                        value={healthForm.fat}
+                        onChange={(e) => setHealthForm({ ...healthForm, fat: e.target.value })}
+                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
+                        placeholder="18.5" 
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* メモ */}
+                <div class="border-t border-gray-800 pt-3">
+                  <label class="text-xs font-bold text-gray-400">メモ（主治医のアドバイス等）</label>
                   <input 
                     type="text" 
                     value={healthForm.memo}
                     onChange={(e) => setHealthForm({ ...healthForm, memo: e.target.value })}
                     class={`w-full p-2 border rounded mt-1 text-xs ${inputClass}`} 
-                    placeholder="例: 食後にウォーキング15分" 
+                    placeholder="例: HbA1c改善傾向。次回は2ヶ月後" 
                   />
                 </div>
 
                 <button 
                   onClick={handleSaveHealth} 
                   disabled={isSending}
-                  class="w-full py-2.5 bg-red-600 text-white font-bold rounded-lg shadow mt-2 disabled:bg-gray-500"
+                  class="w-full py-3 bg-red-600 text-white font-bold rounded-xl shadow mt-2 disabled:bg-gray-500 hover:bg-red-700"
                 >
-                  {isSending ? '保存中...' : '健康データを保存'}
+                  {isSending ? '保存中...' : '健康データをスプレッドシートに保存'}
                 </button>
               </div>
             )}
@@ -502,7 +610,7 @@
                 <div class="text-4xl">🤖</div>
                 <h2 class="font-bold text-base">NotebookLM でAI分析</h2>
                 <p class="text-xs text-gray-400 leading-relaxed">
-                  蓄積された血糖値・体重・筋トレログをもとに、AIがあなたの健康とトレーニングの分析・アドバイスを行います。
+                  蓄積された血糖値・HbA1c・コレステロール・体重・筋トレログをもとに、AIがあなたの健康とトレーニングの分析・アドバイスを行います。
                 </p>
                 
                 <a 
@@ -516,8 +624,8 @@
 
                 <div class="text-left text-xs text-gray-400 pt-2 border-t border-gray-700 space-y-1">
                   <p class="font-bold text-gray-300">💡 質問の例：</p>
-                  <p>・「今月の胸トレの重量推移を教えて」</p>
-                  <p>・「食後血糖値が高かった日のトレーニング傾向は？」</p>
+                  <p>・「直近のHbA1cとコレステロール値の推移は？」</p>
+                  <p>・「中性脂肪と筋トレの頻度に関係はある？」</p>
                 </div>
               </div>
             )}
