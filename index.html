@@ -1,691 +1,439 @@
 <!DOCTYPE html>
+
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#dc2626">
+
   <title>Health & Training Log</title>
+
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
   <script src="https://cdn.tailwindcss.com"></script>
+
 </head>
+
 <body class="antialiased selection:bg-red-500 selection:text-white">
   <div id="root"></div>
 
   <script type="text/babel">
+
     const { useState, useEffect } = React;
 
-    const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxolxpP8zH9hfJLIy514aTN4ePHnxQRxLI_t6KMTBO_dJpbJ46EwifIGqX7VJeOBWde6w/exec";
+    // =========================================================
+    // Google Apps Script Web App URL
+    // =========================================================
+
+    const GAS_WEBAPP_URL =
+      "https://script.google.com/macros/s/AKfycbxolxpP8zH9hfJLIy514aTN4ePHnxQRxLI_t6KMTBO_dJpbJ46EwifIGqX7VJeOBWde6w/exec";
+
+
+    // =========================================================
+    // 初期カテゴリー
+    // =========================================================
 
     const DEFAULT_CATEGORIES = {
-      '胸': ['腕立て', 'ディップス', 'ベンチプレス'],
-      '背中': ['ワンハンドロー', 'ダンベルプルオーバー', '懸垂'],
-      '脚': ['スクワット', 'ブルガリアンスクワット', 'カーフ']
+      "胸": ["腕立て", "ディップス", "ベンチプレス"],
+      "背中": ["ワンハンドロー", "ダンベルプルオーバー", "懸垂"],
+      "脚": ["スクワット", "ブルガリアンスクワット", "カーフ"]
     };
 
-    function App() {
-      const [tab, setTab] = useState('training');
-      const [isSending, setIsSending] = useState(false);
-      const [sendSuccessMessage, setSendSuccessMessage] = useState('');
 
-      // テーマ管理
+    // =========================================================
+    // 日本時間の日付
+    // =========================================================
+
+    const getJapanDate = () => {
+      const now = new Date();
+
+      const japanTime = new Date(
+        now.toLocaleString("en-US", {
+          timeZone: "Asia/Tokyo"
+        })
+      );
+
+      const y = japanTime.getFullYear();
+      const m = String(japanTime.getMonth() + 1).padStart(2, "0");
+      const d = String(japanTime.getDate()).padStart(2, "0");
+
+      return `${y}-${m}-${d}`;
+    };
+
+
+    // =========================================================
+    // App
+    // =========================================================
+
+    function App() {
+
+      const [tab, setTab] = useState("home");
+
+      const [isSending, setIsSending] = useState(false);
+      const [sendSuccessMessage, setSendSuccessMessage] = useState("");
+
+
+      // =======================================================
+      // テーマ
+      // =======================================================
+
       const [isDarkMode, setIsDarkMode] = useState(() => {
-        const savedTheme = localStorage.getItem('app_theme');
-        if (savedTheme) return savedTheme === 'dark';
+
+        const savedTheme = localStorage.getItem("app_theme");
+
+        if (savedTheme) {
+          return savedTheme === "dark";
+        }
+
         const hour = new Date().getHours();
+
         return hour >= 18 || hour < 6;
       });
 
+
       const toggleTheme = () => {
+
         setIsDarkMode(prev => {
+
           const next = !prev;
-          localStorage.setItem('app_theme', next ? 'dark' : 'light');
+
+          localStorage.setItem(
+            "app_theme",
+            next ? "dark" : "light"
+          );
+
           return next;
         });
+
       };
 
-      // 部位・種目データ
+
+      // =======================================================
+      // 部位・種目
+      // =======================================================
+
       const [categories, setCategories] = useState(() => {
-        const saved = localStorage.getItem('app_categories');
-        return saved ? JSON.parse(saved) : DEFAULT_CATEGORIES;
+
+        const saved =
+          localStorage.getItem("app_categories");
+
+        return saved
+          ? JSON.parse(saved)
+          : DEFAULT_CATEGORIES;
       });
 
-      const [selectedCategory, setSelectedCategory] = useState(Object.keys(categories)[0] || '');
-      const [selectedExercise, setSelectedExercise] = useState('');
 
+      const [selectedCategory, setSelectedCategory] =
+        useState(
+          Object.keys(categories)[0] || ""
+        );
+
+
+      const [selectedExercise, setSelectedExercise] =
+        useState("");
+
+
+      // =======================================================
       // 筋トレ入力
-      const [setsData, setSetsData] = useState([
-        { weight: '', reps: '', memo: '' },
-        { weight: '', reps: '', memo: '' },
-        { weight: '', reps: '', memo: '' }
-      ]);
+      // =======================================================
 
-      // 健康データ入力
-      const [healthForm, setHealthForm] = useState({
-        testDate: new Date().toISOString().split('T')[0],
-        glucose: '',
-        hba1c: '',
-        totalChol: '',
-        hdl: '',
-        ldl: '',
-        triglycerides: '',
-        weight: '',
-        fat: '',
-        timing: '食後2時間',
-        memo: ''
-      });
+      const emptySets = [
+        { weight: "", reps: "", memo: "" },
+        { weight: "", reps: "", memo: "" },
+        { weight: "", reps: "", memo: "" }
+      ];
 
-      // 履歴データ（LocalStorage保持）
-      const [allLogs, setAllLogs] = useState(() => {
-        const savedLogs = localStorage.getItem('app_logs_history');
-        return savedLogs ? JSON.parse(savedLogs) : [];
-      });
 
-      const [selectedHistoryDate, setSelectedHistoryDate] = useState(new Date().toISOString().split('T')[0]);
+      const [setsData, setSetsData] =
+        useState(emptySets);
 
+
+      // =======================================================
+      // 健康データ
+      // =======================================================
+
+      const initialHealthForm = {
+        testDate: getJapanDate(),
+
+        glucose: "",
+        hba1c: "",
+
+        totalChol: "",
+        hdl: "",
+        ldl: "",
+        triglycerides: "",
+
+        weight: "",
+        fat: "",
+
+        timing: "食後2時間",
+
+        memo: ""
+      };
+
+
+      const [healthForm, setHealthForm] =
+        useState(initialHealthForm);
+
+
+      // =======================================================
+      // 履歴
+      // =======================================================
+
+      const [allLogs, setAllLogs] =
+        useState(() => {
+
+          const savedLogs =
+            localStorage.getItem(
+              "app_logs_history"
+            );
+
+          return savedLogs
+            ? JSON.parse(savedLogs)
+            : [];
+        });
+
+
+      const [selectedHistoryDate,
+        setSelectedHistoryDate] =
+        useState(getJapanDate());
+
+
+      // =======================================================
       // 管理モーダル
-      const [showManageModal, setShowManageModal] = useState(false);
-      const [newCategoryName, setNewCategoryName] = useState('');
-      const [newExerciseName, setNewExerciseName] = useState('');
-      const [targetCategoryForNewEx, setTargetCategoryForNewEx] = useState(Object.keys(categories)[0] || '');
+      // =======================================================
+
+      const [showManageModal,
+        setShowManageModal] =
+        useState(false);
+
+
+      const [newCategoryName,
+        setNewCategoryName] =
+        useState("");
+
+
+      const [newExerciseName,
+        setNewExerciseName] =
+        useState("");
+
+
+      const [targetCategoryForNewEx,
+        setTargetCategoryForNewEx] =
+        useState(
+          Object.keys(categories)[0] || ""
+        );
+
+
+      // =======================================================
+      // 種目変更時
+      // =======================================================
 
       useEffect(() => {
-        if (categories[selectedCategory] && categories[selectedCategory].length > 0) {
-          setSelectedExercise(categories[selectedCategory][0]);
+
+        if (
+          categories[selectedCategory] &&
+          categories[selectedCategory].length > 0
+        ) {
+
+          setSelectedExercise(
+            categories[selectedCategory][0]
+          );
+
         } else {
-          setSelectedExercise('');
+
+          setSelectedExercise("");
+
         }
+
       }, [selectedCategory, categories]);
 
+
+      // =======================================================
+      // LocalStorage
+      // =======================================================
+
       useEffect(() => {
-        localStorage.setItem('app_categories', JSON.stringify(categories));
+
+        localStorage.setItem(
+          "app_categories",
+          JSON.stringify(categories)
+        );
+
       }, [categories]);
 
+
       useEffect(() => {
-        localStorage.setItem('app_logs_history', JSON.stringify(allLogs));
+
+        localStorage.setItem(
+          "app_logs_history",
+          JSON.stringify(allLogs)
+        );
+
       }, [allLogs]);
 
-      // ログ追加（ローカル保存 ＋ GASバックアップ送信）
+
+      // =======================================================
+      // ログ保存
+      // =======================================================
+
       const saveLogItem = async (logItem) => {
-        setAllLogs(prev => [logItem, ...prev]);
+
+        setAllLogs(prev => [
+          logItem,
+          ...prev
+        ]);
+
 
         setIsSending(true);
+
+
         try {
-          await fetch(GAS_WEBAPP_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(logItem)
-          });
+
+          await fetch(
+            GAS_WEBAPP_URL,
+            {
+              method: "POST",
+
+              mode: "no-cors",
+
+              headers: {
+                "Content-Type":
+                  "application/json"
+              },
+
+              body:
+                JSON.stringify(logItem)
+            }
+          );
+
         } catch (err) {
-          console.error("GAS送信エラー:", err);
+
+          console.error(
+            "GAS送信エラー:",
+            err
+          );
+
         } finally {
+
           setIsSending(false);
+
         }
+
       };
 
-      // 筋トレ保存（重さ空欄のときは「自重」と判定）
+
+      // =======================================================
+      // 保存完了表示
+      // =======================================================
+
+      const showSavedMessage = () => {
+
+        setSendSuccessMessage(
+          "保存しました！"
+        );
+
+        setTimeout(() => {
+
+          setSendSuccessMessage("");
+
+        }, 3000);
+
+      };
+
+
+      // =======================================================
+      // 筋トレ保存
+      // =======================================================
+
       const handleSaveTraining = async () => {
+
         if (!selectedExercise) {
-          alert('種目を選択してください');
+
+          alert("種目を選択してください");
+
           return;
         }
 
-        const todayStr = new Date().toISOString().split('T')[0];
+
+        const todayStr = getJapanDate();
+
         let savedCount = 0;
 
-        for (let i = 0; i < setsData.length; i++) {
+
+        for (
+          let i = 0;
+          i < setsData.length;
+          i++
+        ) {
+
           const setItem = setsData[i];
-          // 重さまたは回数が入力されている場合
-          if (setItem.weight !== '' || setItem.reps !== '') {
-            // 重さが空欄（または未入力）の場合は「自重」とする
-            const weightVal = setItem.weight ? `${setItem.weight} kg` : '自重';
+
+
+          if (
+            setItem.weight !== "" ||
+            setItem.reps !== ""
+          ) {
+
+            const weightVal =
+              setItem.weight
+                ? `${setItem.weight} kg`
+                : "自重";
+
 
             const logPayload = {
+
               datetime: todayStr,
-              type: '筋トレ',
-              category: selectedCategory,
-              detail: `${selectedExercise} (${i + 1}セット目)`,
-              val1: weightVal,
-              val2: setItem.reps ? `${setItem.reps} 回` : '',
-              memo: setItem.memo || ''
+
+              type: "筋トレ",
+
+              category:
+                selectedCategory,
+
+              detail:
+                `${selectedExercise} (${i + 1}セット目)`,
+
+              val1:
+                weightVal,
+
+              val2:
+                setItem.reps
+                  ? `${setItem.reps} 回`
+                  : "",
+
+              memo:
+                setItem.memo || ""
             };
-            await saveLogItem(logPayload);
+
+
+            await saveLogItem(
+              logPayload
+            );
+
+
             savedCount++;
+
           }
+
         }
+
 
         if (savedCount === 0) {
-          alert('回数または重さを入力してください');
+
+          alert(
+            "回数または重さを入力してください"
+          );
+
         } else {
-          setSendSuccessMessage('保存しました！');
-          setTimeout(() => setSendSuccessMessage(''), 3000);
+
+          showSavedMessage();
+
           setSetsData([
-            { weight: '', reps: '', memo: '' },
-            { weight: '', reps: '', memo: '' },
-            { weight: '', reps: '', memo: '' }
-          ]);
-        }
-      };
-
-      // 健康データ保存
-      const handleSaveHealth = async () => {
-        const datetimeStr = healthForm.testDate || new Date().toISOString().split('T')[0];
-        let hasData = false;
-
-        if (healthForm.glucose) {
-          await saveLogItem({
-            datetime: datetimeStr,
-            type: '糖尿病',
-            category: '血糖値',
-            detail: healthForm.timing,
-            val1: `${healthForm.glucose} mg/dL`,
-            val2: '',
-            memo: healthForm.memo
-          });
-          hasData = true;
-        }
-
-        if (healthForm.hba1c) {
-          await saveLogItem({
-            datetime: datetimeStr,
-            type: '糖尿病',
-            category: 'HbA1c',
-            detail: '血液検査',
-            val1: `${healthForm.hba1c} %`,
-            val2: '',
-            memo: healthForm.memo
-          });
-          hasData = true;
-        }
-
-        if (healthForm.totalChol || healthForm.hdl || healthForm.ldl || healthForm.triglycerides) {
-          await saveLogItem({
-            datetime: datetimeStr,
-            type: '血液検査',
-            category: '脂質パネル',
-            detail: 'コレステロール・中性脂肪',
-            val1: [
-              healthForm.totalChol ? `総コレ: ${healthForm.totalChol}` : '',
-              healthForm.ldl ? `LDL: ${healthForm.ldl}` : '',
-              healthForm.hdl ? `HDL: ${healthForm.hdl}` : ''
-            ].filter(Boolean).join(' / '),
-            val2: healthForm.triglycerides ? `中性脂肪: ${healthForm.triglycerides} mg/dL` : '',
-            memo: healthForm.memo
-          });
-          hasData = true;
-        }
-
-        if (healthForm.weight || healthForm.fat) {
-          await saveLogItem({
-            datetime: datetimeStr,
-            type: '体組成',
-            category: '体重・体脂肪',
-            detail: '測定',
-            val1: healthForm.weight ? `${healthForm.weight} kg` : '',
-            val2: healthForm.fat ? `${healthForm.fat} %` : '',
-            memo: healthForm.memo
-          });
-          hasData = true;
-        }
-
-        if (!hasData) {
-          alert('少なくとも1つの項目を入力してください');
-        } else {
-          setSendSuccessMessage('保存しました！');
-          setTimeout(() => setSendSuccessMessage(''), 3000);
-          setHealthForm({
-            testDate: new Date().toISOString().split('T')[0],
-            glucose: '',
-            hba1c: '',
-            totalChol: '',
-            hdl: '',
-            ldl: '',
-            triglycerides: '',
-            weight: '',
-            fat: '',
-            timing: '食後2時間',
-            memo: ''
-          });
-        }
-      };
-
-      // 部位・種目追加・削除
-      const handleAddCategory = () => {
-        if (!newCategoryName.trim()) return;
-        if (!categories[newCategoryName]) {
-          setCategories(prev => ({ ...prev, [newCategoryName]: [] }));
-          setSelectedCategory(newCategoryName);
-          setTargetCategoryForNewEx(newCategoryName);
-        }
-        setNewCategoryName('');
-      };
-
-      const handleDeleteCategory = (catToDelete) => {
-        if (!confirm(`部位「${catToDelete}」と含まれる種目を削除しますか？`)) return;
-        setCategories(prev => {
-          const updated = { ...prev };
-          delete updated[catToDelete];
-          return updated;
-        });
-        const remainingCats = Object.keys(categories).filter(c => c !== catToDelete);
-        if (remainingCats.length > 0) {
-          setSelectedCategory(remainingCats[0]);
-          setTargetCategoryForNewEx(remainingCats[0]);
-        } else {
-          setSelectedCategory('');
-        }
-      };
-
-      const handleAddExercise = () => {
-        if (!newExerciseName.trim() || !targetCategoryForNewEx) return;
-        setCategories(prev => {
-          const currentList = prev[targetCategoryForNewEx] || [];
-          if (currentList.includes(newExerciseName)) return prev;
-          return {
-            ...prev,
-            [targetCategoryForNewEx]: [...currentList, newExerciseName]
-          };
-        });
-        setSelectedCategory(targetCategoryForNewEx);
-        setSelectedExercise(newExerciseName);
-        setNewExerciseName('');
-      };
-
-      const handleDeleteExercise = (cat, exToDelete) => {
-        setCategories(prev => ({
-          ...prev,
-          [cat]: (prev[cat] || []).filter(ex => ex !== exToDelete)
-        }));
-      };
-
-      // 履歴削除
-      const handleDeleteLog = (indexToDelete) => {
-        if (!confirm('この記録を削除しますか？')) return;
-        setAllLogs(prev => prev.filter((_, idx) => idx !== indexToDelete));
-      };
-
-      // 日付一致ログ抽出
-      const filteredLogs = allLogs.filter(log => {
-        if (!log.datetime) return false;
-        return String(log.datetime).includes(selectedHistoryDate);
-      });
-
-      // テーマ配色
-      const themeClass = isDarkMode ? 'bg-gray-950 text-gray-100' : 'bg-gray-100 text-gray-800';
-      const cardClass = isDarkMode ? 'bg-gray-900 border-gray-800 text-white' : 'bg-white border-gray-200 text-gray-800';
-      const inputClass = isDarkMode ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-300 text-gray-800';
-      const navClass = isDarkMode ? 'bg-gray-900 border-gray-800 text-gray-400' : 'bg-white border-gray-200 text-gray-600';
-
-      return (
-        <div class={`max-w-md mx-auto min-h-screen flex flex-col justify-between shadow-lg pb-20 relative transition-colors duration-200 ${themeClass}`}>
-          {/* ヘッダー */}
-          <header class="bg-red-600 text-white p-4 font-bold text-lg text-center sticky top-0 z-10 shadow flex justify-between items-center">
-            <span class="text-xs bg-red-700 px-2 py-1 rounded">Sync Sheet</span>
-            <span>
-              {tab === 'home' && '🏠 ホーム'}
-              {tab === 'training' && (selectedExercise || '種目を選択')}
-              {tab === 'health' && '🩺 健康データ'}
-              {tab === 'history' && '📅 履歴・記録'}
-              {tab === 'notebooklm' && '🤖 NotebookLM'}
-            </span>
-            <button 
-              onClick={toggleTheme} 
-              class="text-sm bg-red-700 p-1.5 rounded-full hover:bg-red-800 transition"
-              title="テーマ切替"
-            >
-              {isDarkMode ? '🌙 夜' : '☀️ 昼'}
-            </button>
-          </header>
-
-          {/* 通知 */}
-          {sendSuccessMessage && (
-            <div class="bg-green-600 text-white text-xs font-bold p-2 text-center sticky top-14 z-20 shadow">
-              {sendSuccessMessage}
-            </div>
-          )}
-
-          {/* メインエリア */}
-          <main class="p-4 flex-1">
-            {/* 🏋️ トレーニング入力 */}
-            {tab === 'training' && (
-              <div class="space-y-4">
-                <div class="flex justify-between items-center">
-                  <span class={`font-bold text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>部位・種目の選択</span>
-                  <button 
-                    onClick={() => setShowManageModal(true)}
-                    class="text-xs bg-red-600 text-white px-3 py-1.5 rounded-full font-bold shadow hover:bg-red-700 flex items-center gap-1"
-                  >
-                    <span>⚙️</span> 追加・削除
-                  </button>
-                </div>
-
-                <div class="flex gap-2 overflow-x-auto pb-1">
-                  {Object.keys(categories).map(cat => (
-                    <button
-                      key={cat}
-                      onClick={() => setSelectedCategory(cat)}
-                      class={`px-4 py-1.5 text-xs font-bold rounded-full whitespace-nowrap border ${
-                        selectedCategory === cat 
-                          ? 'bg-red-600 text-white border-red-600' 
-                          : isDarkMode 
-                            ? 'bg-gray-800 text-gray-300 border-gray-700' 
-                            : 'bg-white text-gray-700 border-gray-300'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-
-                <div>
-                  <label class={`block text-xs font-bold mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>種目</label>
-                  <select 
-                    value={selectedExercise} 
-                    onChange={(e) => setSelectedExercise(e.target.value)}
-                    class={`w-full p-2.5 border rounded-lg text-sm font-bold ${inputClass}`}
-                  >
-                    {(categories[selectedCategory] || []).map(ex => (
-                      <option key={ex} value={ex}>{ex}</option>
-                    ))}
-                  </select>
-                </div>
-
-                {setsData.map((set, idx) => (
-                  <div key={idx} class={`p-3 rounded-xl border shadow-sm space-y-2 ${cardClass}`}>
-                    <div class="flex items-center justify-between text-sm font-bold">
-                      <span class="bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-xs">{idx + 1}</span>
-                      <div class="flex items-center gap-2">
-                        <input 
-                          type="number" 
-                          placeholder="自重" 
-                          value={set.weight}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setSetsData(prev => prev.map((item, i) => i === idx ? { ...item, weight: val } : item));
-                          }}
-                          class={`w-20 p-1.5 border rounded text-center text-sm ${inputClass}`} 
-                        />
-                        <span class="text-xs text-gray-400">kg</span>
-                        <input 
-                          type="number" 
-                          placeholder="回数" 
-                          value={set.reps}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setSetsData(prev => prev.map((item, i) => i === idx ? { ...item, reps: val } : item));
-                          }}
-                          class={`w-20 p-1.5 border rounded text-center text-sm ${inputClass}`} 
-                        />
-                        <span class="text-xs text-gray-400">回</span>
-                      </div>
-                    </div>
-                    <input 
-                      type="text" 
-                      placeholder="メモ (例: フォーム意識)" 
-                      value={set.memo}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setSetsData(prev => prev.map((item, i) => i === idx ? { ...item, memo: val } : item));
-                      }}
-                      class={`w-full p-1.5 border rounded text-xs ${inputClass}`} 
-                    />
-                  </div>
-                ))}
-
-                <button 
-                  onClick={handleSaveTraining} 
-                  disabled={isSending}
-                  class="w-full py-3 bg-red-600 text-white font-bold rounded-xl shadow-md hover:bg-red-700 disabled:bg-gray-500"
-                >
-                  {isSending ? '保存中...' : '記録を保存'}
-                </button>
-              </div>
-            )}
-
-            {/* 🏠 ホーム */}
-            {tab === 'home' && (
-              <div class="space-y-4">
-                <div class={`p-4 rounded-xl border shadow-sm ${cardClass}`}>
-                  <h2 class="text-xs font-bold text-gray-400 mb-1">本日のトレーニング状況</h2>
-                  <p class="text-sm font-bold text-red-500">
-                    {allLogs.filter(l => l.datetime && String(l.datetime).includes(new Date().toISOString().split('T')[0]) && l.type === '筋トレ').length} 件の記録あり
-                  </p>
-                </div>
-                <div class="grid grid-cols-2 gap-2">
-                  <button onClick={() => setTab('training')} class="py-3 bg-red-600 text-white font-bold rounded-xl shadow text-sm">
-                    🏋️ 筋トレ入力
-                  </button>
-                  <button onClick={() => setTab('history')} class="py-3 bg-gray-800 text-white font-bold rounded-xl shadow text-sm border border-gray-700">
-                    📅 日付で振り返る
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* 🩺 健康データ入力 */}
-            {tab === 'health' && (
-              <div class={`space-y-4 text-sm p-4 rounded-xl border ${cardClass}`}>
-                <h2 class="font-bold border-b border-gray-700 pb-2 text-red-500">健康・血液検査データ</h2>
-
-                <div>
-                  <label class="text-xs font-bold text-gray-400">📅 検査日 / 測定日</label>
-                  <input 
-                    type="date" 
-                    value={healthForm.testDate}
-                    onChange={(e) => setHealthForm({ ...healthForm, testDate: e.target.value })}
-                    class={`w-full p-2 border rounded mt-1 text-xs font-bold ${inputClass}`} 
-                  />
-                </div>
-
-                <div class="space-y-2 border-t border-gray-800 pt-3">
-                  <span class="text-xs font-bold text-red-400">🩸 血糖値・HbA1c</span>
-                  <div class="grid grid-cols-2 gap-2">
-                    <div>
-                      <label class="text-xs text-gray-400">血糖値 (mg/dL)</label>
-                      <input 
-                        type="number" 
-                        value={healthForm.glucose}
-                        onChange={(e) => setHealthForm({ ...healthForm, glucose: e.target.value })}
-                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
-                        placeholder="110" 
-                      />
-                    </div>
-                    <div>
-                      <label class="text-xs text-gray-400">HbA1c (%)</label>
-                      <input 
-                        type="number" 
-                        step="0.1" 
-                        value={healthForm.hba1c}
-                        onChange={(e) => setHealthForm({ ...healthForm, hba1c: e.target.value })}
-                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
-                        placeholder="6.5" 
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div class="space-y-2 border-t border-gray-800 pt-3">
-                  <span class="text-xs font-bold text-yellow-400">🧪 脂質パネル（コレステロール・中性脂肪）</span>
-                  <div class="grid grid-cols-2 gap-2">
-                    <div>
-                      <label class="text-xs text-gray-400">総コレステロール</label>
-                      <input 
-                        type="number" 
-                        value={healthForm.totalChol}
-                        onChange={(e) => setHealthForm({ ...healthForm, totalChol: e.target.value })}
-                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
-                        placeholder="200" 
-                      />
-                    </div>
-                    <div>
-                      <label class="text-xs text-gray-400">中性脂肪 (TG)</label>
-                      <input 
-                        type="number" 
-                        value={healthForm.triglycerides}
-                        onChange={(e) => setHealthForm({ ...healthForm, triglycerides: e.target.value })}
-                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
-                        placeholder="150" 
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <button 
-                  onClick={handleSaveHealth} 
-                  disabled={isSending}
-                  class="w-full py-3 bg-red-600 text-white font-bold rounded-xl shadow mt-2 disabled:bg-gray-500 hover:bg-red-700"
-                >
-                  {isSending ? '保存中...' : '健康データを保存'}
-                </button>
-              </div>
-            )}
-
-            {/* 📅 履歴・振り返り */}
-            {tab === 'history' && (
-              <div class="space-y-4">
-                <div class={`p-4 rounded-xl border space-y-3 ${cardClass}`}>
-                  <label class="text-xs font-bold text-gray-400">日付を選択して記録を確認</label>
-                  <input 
-                    type="date" 
-                    value={selectedHistoryDate}
-                    onChange={(e) => setSelectedHistoryDate(e.target.value)}
-                    class={`w-full p-2.5 border rounded-lg text-sm font-bold ${inputClass}`}
-                  />
-                </div>
-
-                {filteredLogs.length === 0 ? (
-                  <div class="text-center py-8 text-xs text-gray-400">選択した日付の記録はありません</div>
-                ) : (
-                  <div class="space-y-2">
-                    {filteredLogs.map((log, index) => (
-                      <div key={index} class={`p-3 rounded-xl border text-xs space-y-1 relative ${cardClass}`}>
-                        <div class="flex justify-between items-center font-bold">
-                          <span class={`px-2 py-0.5 rounded text-[10px] ${
-                            log.type === '筋トレ' ? 'bg-red-900 text-red-200' : 'bg-blue-900 text-blue-200'
-                          }`}>
-                            {log.type} - {log.category}
-                          </span>
-                          <div class="flex items-center gap-2">
-                            <span class="text-gray-400 text-[10px]">{log.datetime}</span>
-                            <button 
-                              onClick={() => handleDeleteLog(allLogs.indexOf(log))}
-                              class="text-red-400 font-bold px-1 hover:text-red-600"
-                              title="記録を削除"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                        </div>
-                        <div class="font-bold text-sm pt-1">{log.detail}</div>
-                        <div class="flex gap-3 text-gray-300 font-bold">
-                          {log.val1 && <span class="text-red-400">{log.val1}</span>}
-                          {log.val2 && <span>{log.val2}</span>}
-                        </div>
-                        {log.memo && <div class="text-gray-400 italic text-[11px]">💬 {log.memo}</div>}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* 🤖 NotebookLM タブ */}
-            {tab === 'notebooklm' && (
-              <div class={`p-5 rounded-xl border text-center space-y-4 ${cardClass}`}>
-                <div class="text-4xl">🤖</div>
-                <h2 class="font-bold text-base">NotebookLM でAI分析</h2>
-                <a 
-                  href="https://notebooklm.google.com/" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  class="inline-block w-full py-3 bg-red-600 text-white font-bold text-sm rounded-xl shadow-lg hover:bg-red-700 transition"
-                >
-                  NotebookLM を開く ↗
-                </a>
-              </div>
-            )}
-          </main>
-
-          {/* 管理モーダル */}
-          {showManageModal && (
-            <div class="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50">
-              <div class={`rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-xl max-h-[85vh] overflow-y-auto ${cardClass}`}>
-                <div class="flex justify-between items-center border-b border-gray-700 pb-2">
-                  <h3 class="font-bold text-base">部位・種目の管理</h3>
-                  <button onClick={() => setShowManageModal(false)} class="text-gray-400 font-bold text-lg">×</button>
-                </div>
-                
-                <div class="space-y-2">
-                  <label class="text-xs font-bold text-gray-400">① 部位の追加</label>
-                  <div class="flex gap-2">
-                    <input 
-                      type="text" 
-                      placeholder="例: 肩, 腕" 
-                      value={newCategoryName} 
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      class={`flex-1 p-2 border rounded text-xs ${inputClass}`}
-                    />
-                    <button onClick={handleAddCategory} class="bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold">追加</button>
-                  </div>
-                </div>
-
-                <hr class="border-gray-700" />
-
-                <div class="space-y-2">
-                  <label class="text-xs font-bold text-gray-400">② 種目の追加</label>
-                  <select 
-                    value={targetCategoryForNewEx} 
-                    onChange={(e) => setTargetCategoryForNewEx(e.target.value)}
-                    class={`w-full p-2 border rounded text-xs font-bold ${inputClass}`}
-                  >
-                    {Object.keys(categories).map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-
-                  <div class="flex gap-2">
-                    <input 
-                      type="text" 
-                      placeholder="例: サイドレイズ" 
-                      value={newExerciseName} 
-                      onChange={(e) => setNewExerciseName(e.target.value)}
-                      class={`flex-1 p-2 border rounded text-xs ${inputClass}`}
-                    />
-                    <button onClick={handleAddExercise} class="bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold">追加</button>
-                  </div>
-                </div>
-
-                <button onClick={() => setShowManageModal(false)} class="w-full bg-gray-700 text-white py-2 rounded-xl text-xs font-bold">
-                  閉じる
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* 下部ナビゲーション */}
-          <nav class={`fixed bottom-0 left-0 right-0 max-w-md mx-auto border-t flex justify-around p-2 text-xs z-10 ${navClass}`}>
-            <button onClick={() => setTab('home')} class={`flex flex-col items-center ${tab === 'home' ? 'text-red-500 font-bold' : ''}`}>
-              <span>🏠</span>ホーム
-            </button>
-            <button onClick={() => setTab('training')} class={`flex flex-col items-center ${tab === 'training' ? 'text-red-500 font-bold' : ''}`}>
-              <span>🏋️</span>筋トレ
-            </button>
-            <button onClick={() => setTab('history')} class={`flex flex-col items-center ${tab === 'history' ? 'text-red-500 font-bold' : ''}`}>
-              <span>📅</span>履歴
-            </button>
-            <button onClick={() => setTab('health')} class={`flex flex-col items-center ${tab === 'health' ? 'text-red-500 font-bold' : ''}`}>
-              <span>🩺</span>健康
-            </button>
-            <button onClick={() => setTab('notebooklm')} class={`flex flex-col items-center ${tab === 'notebooklm' ? 'text-red-500 font-bold' : ''}`}>
-              <span>🤖</span>AI
-            </button>
-          </nav>
-        </div>
-      );
-    }
-
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-  </script>
-</body>
-</html>
+            { weight: "", reps: "", memo: "" },
+            { weight: "", reps: "", memo: "" },
