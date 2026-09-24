@@ -216,7 +216,87 @@
 
       const [selectedHistoryDate, setSelectedHistoryDate] =
         useState(getJapanDate());
+// ============================================================
+// 過去データ表示用
+// ============================================================
 
+const [selectedHealthDate, setSelectedHealthDate] =
+  useState(null);
+
+const [selectedTrainingDate, setSelectedTrainingDate] =
+  useState(null);
+
+
+// ============================================================
+// 健康データが存在する日だけ取得
+// ============================================================
+
+const healthDates = [
+  ...new Set(
+    allLogs
+      .filter(log =>
+        log.datetime &&
+        (
+          log.type === "糖尿病" ||
+          log.type === "血液検査" ||
+          log.type === "体組成"
+        )
+      )
+      .map(log =>
+        String(log.datetime).slice(0, 10)
+      )
+  )
+].sort().reverse();
+
+
+// ============================================================
+// 筋トレデータが存在する日だけ取得
+// ============================================================
+
+const trainingDates = [
+  ...new Set(
+    allLogs
+      .filter(log =>
+        log.datetime &&
+        log.type === "筋トレ"
+      )
+      .map(log =>
+        String(log.datetime).slice(0, 10)
+      )
+  )
+].sort().reverse();
+
+
+// ============================================================
+// 選択した健康日の記録
+// ============================================================
+
+const selectedHealthLogs =
+  selectedHealthDate
+    ? allLogs.filter(log =>
+        String(log.datetime).slice(0, 10) ===
+        selectedHealthDate &&
+        (
+          log.type === "糖尿病" ||
+          log.type === "血液検査" ||
+          log.type === "体組成"
+        )
+      )
+    : [];
+
+
+// ============================================================
+// 選択した筋トレ日の記録
+// ============================================================
+
+const selectedTrainingLogs =
+  selectedTrainingDate
+    ? allLogs.filter(log =>
+        String(log.datetime).slice(0, 10) ===
+        selectedTrainingDate &&
+        log.type === "筋トレ"
+      )
+    : [];
 
       // ============================================================
       // 管理モーダル
@@ -1388,7 +1468,126 @@
                     : "💾 記録を保存"}
 
                 </button>
+{/* ==================================================
+    過去のトレーニング
+================================================== */}
 
+<div
+  className={`mt-6 p-4 rounded-xl border ${cardClass}`}
+>
+
+  <h3 className="font-bold text-sm mb-3 text-red-400">
+    📋 過去のトレーニング
+  </h3>
+
+  {trainingDates.length === 0 ? (
+
+    <div className="text-xs text-gray-400 text-center py-4">
+      過去のトレーニング記録はありません
+    </div>
+
+  ) : (
+
+    <div className="space-y-2">
+
+      {trainingDates.map(date => (
+
+        <button
+          key={date}
+          onClick={() =>
+            setSelectedTrainingDate(
+              selectedTrainingDate === date
+                ? null
+                : date
+            )
+          }
+          className={`w-full text-left p-3 rounded-lg border text-sm font-bold ${
+            selectedTrainingDate === date
+              ? "bg-red-600 text-white border-red-600"
+              : isDarkMode
+                ? "bg-gray-800 border-gray-700 text-gray-200"
+                : "bg-gray-50 border-gray-200 text-gray-700"
+          }`}
+        >
+          📅 {date.replaceAll("-", "/")}
+        </button>
+
+      ))}
+
+    </div>
+
+  )}
+
+</div>
+
+
+{/* ==================================================
+    選択した筋トレ日の詳細
+================================================== */}
+
+{selectedTrainingDate && (
+
+  <div
+    className={`p-4 rounded-xl border mt-3 ${cardClass}`}
+  >
+
+    <div className="font-bold text-sm mb-3 text-red-400">
+      🏋️ {selectedTrainingDate.replaceAll("-", "/")} のトレーニング
+    </div>
+
+    <div className="space-y-3">
+
+      {selectedTrainingLogs.map(
+        (log, index) => (
+
+        <div
+          key={index}
+          className={`p-3 rounded-lg border ${
+            isDarkMode
+              ? "bg-gray-800 border-gray-700"
+              : "bg-gray-50 border-gray-200"
+          }`}
+        >
+
+          <div className="text-xs text-gray-400 mb-1">
+            {log.category}
+          </div>
+
+          <div className="font-bold text-sm">
+            {log.detail}
+          </div>
+
+          <div className="flex gap-3 mt-2 font-bold">
+
+            {log.val1 && (
+              <span className="text-red-400">
+                {log.val1}
+              </span>
+            )}
+
+            {log.val2 && (
+              <span>
+                {log.val2}
+              </span>
+            )}
+
+          </div>
+
+          {log.memo && (
+            <div className="text-xs text-gray-400 mt-2">
+              💬 {log.memo}
+            </div>
+          )}
+
+        </div>
+
+      ))}
+
+    </div>
+
+  </div>
+
+)}
               </div>
             )}
 
@@ -1787,7 +1986,128 @@
                     : "💾 健康データを保存"}
 
                 </button>
+{/* ==================================================
+    過去の健康データ
+================================================== */}
 
+<div
+  className={`mt-6 p-4 rounded-xl border ${cardClass}`}
+>
+
+  <h3 className="font-bold text-sm mb-3 text-blue-400">
+    📋 過去の健康データ
+  </h3>
+
+  {healthDates.length === 0 ? (
+
+    <div className="text-xs text-gray-400 text-center py-4">
+      過去の健康データはありません
+    </div>
+
+  ) : (
+
+    <div className="space-y-2">
+
+      {healthDates.map(date => (
+
+        <button
+          key={date}
+          onClick={() =>
+            setSelectedHealthDate(
+              selectedHealthDate === date
+                ? null
+                : date
+            )
+          }
+          className={`w-full text-left p-3 rounded-lg border text-sm font-bold ${
+            selectedHealthDate === date
+              ? "bg-blue-600 text-white border-blue-600"
+              : isDarkMode
+                ? "bg-gray-800 border-gray-700 text-gray-200"
+                : "bg-gray-50 border-gray-200 text-gray-700"
+          }`}
+        >
+
+          📅 {date.replaceAll("-", "/")}
+
+        </button>
+
+      ))}
+
+    </div>
+
+  )}
+
+</div>
+
+
+{/* ==================================================
+    選択した健康日の詳細
+================================================== */}
+
+{selectedHealthDate && (
+
+  <div
+    className={`p-4 rounded-xl border mt-3 ${cardClass}`}
+  >
+
+    <div className="font-bold text-sm mb-3 text-blue-400">
+      🩺 {selectedHealthDate.replaceAll("-", "/")} の健康データ
+    </div>
+
+    <div className="space-y-3">
+
+      {selectedHealthLogs.map(
+        (log, index) => (
+
+        <div
+          key={index}
+          className={`p-3 rounded-lg border ${
+            isDarkMode
+              ? "bg-gray-800 border-gray-700"
+              : "bg-gray-50 border-gray-200"
+          }`}
+        >
+
+          <div className="text-xs text-gray-400 mb-1">
+            {log.type} ・ {log.category}
+          </div>
+
+          <div className="font-bold text-sm">
+            {log.detail}
+          </div>
+
+          <div className="flex gap-3 mt-2 font-bold">
+
+            {log.val1 && (
+              <span className="text-red-400">
+                {log.val1}
+              </span>
+            )}
+
+            {log.val2 && (
+              <span>
+                {log.val2}
+              </span>
+            )}
+
+          </div>
+
+          {log.memo && (
+            <div className="text-xs text-gray-400 mt-2">
+              💬 {log.memo}
+            </div>
+          )}
+
+        </div>
+
+      ))}
+
+    </div>
+
+  </div>
+
+)}
               </div>
             )}
 
