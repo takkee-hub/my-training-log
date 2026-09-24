@@ -28,17 +28,14 @@
       const [isSending, setIsSending] = useState(false);
       const [sendSuccessMessage, setSendSuccessMessage] = useState('');
 
-      // 🌙/☀️ テーマ管理（初期値は現在時刻による判定）
+      // テーマ管理
       const [isDarkMode, setIsDarkMode] = useState(() => {
         const savedTheme = localStorage.getItem('app_theme');
-        if (savedTheme) {
-          return savedTheme === 'dark';
-        }
+        if (savedTheme) return savedTheme === 'dark';
         const hour = new Date().getHours();
-        return hour >= 18 || hour < 6; // 18:00〜6:00は夜モード
+        return hour >= 18 || hour < 6;
       });
 
-      // テーマ保存
       const toggleTheme = () => {
         setIsDarkMode(prev => {
           const next = !prev;
@@ -56,14 +53,14 @@
       const [selectedCategory, setSelectedCategory] = useState(Object.keys(categories)[0] || '');
       const [selectedExercise, setSelectedExercise] = useState('');
 
-      // 筋トレデータ
+      // 筋トレ入力フォーム
       const [setsData, setSetsData] = useState([
         { weight: '', reps: '', memo: '' },
         { weight: '', reps: '', memo: '' },
         { weight: '', reps: '', memo: '' }
       ]);
 
-      // 健康データ（検査日・コレステロール・中性脂肪を追加）
+      // 健康データ入力フォーム
       const [healthForm, setHealthForm] = useState({
         testDate: new Date().toISOString().split('T')[0],
         glucose: '',
@@ -77,6 +74,11 @@
         timing: '食後2時間',
         memo: ''
       });
+
+      // 履歴確認用ステート
+      const [selectedHistoryDate, setSelectedHistoryDate] = useState(new Date().toISOString().split('T')[0]);
+      const [allLogs, setAllLogs] = useState([]);
+      const [isLoadingLogs, setIsLoadingLogs] = useState(false);
 
       // 管理モーダル
       const [showManageModal, setShowManageModal] = useState(false);
@@ -96,7 +98,27 @@
         localStorage.setItem('app_categories', JSON.stringify(categories));
       }, [categories]);
 
-      // GASデータ送信
+      // スプレッドシートからの履歴データ取得
+      const fetchLogs = async () => {
+        setIsLoadingLogs(true);
+        try {
+          const res = await fetch(GAS_WEBAPP_URL);
+          const data = await res.json();
+          if (Array.isArray(data)) {
+            setAllLogs(data);
+          }
+        } catch (err) {
+          console.error("履歴取得エラー:", err);
+        } finally {
+          setIsLoadingLogs(false);
+        }
+      };
+
+      useEffect(() => {
+        fetchLogs();
+      }, []);
+
+      // GASへのデータ送信
       const sendToGoogleSheets = async (payload) => {
         setIsSending(true);
         setSendSuccessMessage('');
@@ -107,8 +129,9 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
           });
-          setSendSuccessMessage('スプレッドシートに保存しました！');
+          setSendSuccessMessage('保存しました！');
           setTimeout(() => setSendSuccessMessage(''), 3000);
+          fetchLogs(); // 送信後に最新履歴を再取得
         } catch (err) {
           alert('送信エラーが発生しました: ' + err.toString());
         } finally {
@@ -123,14 +146,14 @@
           return;
         }
 
-        const now = new Date().toLocaleString('ja-JP');
+        const todayStr = new Date().toISOString().split('T')[0];
         let savedCount = 0;
 
         for (let i = 0; i < setsData.length; i++) {
           const setItem = setsData[i];
           if (setItem.weight || setItem.reps) {
             await sendToGoogleSheets({
-              datetime: now,
+              datetime: todayStr,
               type: '筋トレ',
               category: selectedCategory,
               detail: `${selectedExercise} (${i + 1}セット目)`,
@@ -155,10 +178,9 @@
 
       // 健康データ保存
       const handleSaveHealth = async () => {
-        const datetimeStr = healthForm.testDate ? `${healthForm.testDate}` : new Date().toLocaleDateString('ja-JP');
+        const datetimeStr = healthForm.testDate || new Date().toISOString().split('T')[0];
         let hasData = false;
 
-        // 血糖値
         if (healthForm.glucose) {
           await sendToGoogleSheets({
             datetime: datetimeStr,
@@ -172,7 +194,6 @@
           hasData = true;
         }
 
-        // HbA1c
         if (healthForm.hba1c) {
           await sendToGoogleSheets({
             datetime: datetimeStr,
@@ -186,7 +207,6 @@
           hasData = true;
         }
 
-        // コレステロール・脂質類
         if (healthForm.totalChol || healthForm.hdl || healthForm.ldl || healthForm.triglycerides) {
           await sendToGoogleSheets({
             datetime: datetimeStr,
@@ -204,7 +224,6 @@
           hasData = true;
         }
 
-        // 体重・体脂肪
         if (healthForm.weight || healthForm.fat) {
           await sendToGoogleSheets({
             datetime: datetimeStr,
@@ -287,7 +306,13 @@
         }));
       };
 
-      // テーマ配色定義
+      // 選択した日付のログ抽出
+      const filteredLogs = allLogs.filter(log => {
+        if (!log.datetime) return false;
+        return log.datetime.includes(selectedHistoryDate);
+      });
+
+      // テーマ配色
       const themeClass = isDarkMode ? 'bg-gray-950 text-gray-100' : 'bg-gray-100 text-gray-800';
       const cardClass = isDarkMode ? 'bg-gray-900 border-gray-800 text-white' : 'bg-white border-gray-200 text-gray-800';
       const inputClass = isDarkMode ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-300 text-gray-800';
@@ -301,10 +326,10 @@
             <span>
               {tab === 'home' && '🏠 ホーム'}
               {tab === 'training' && (selectedExercise || '種目を選択')}
-              {tab === 'health' && '🩺 健康・検査データ'}
+              {tab === 'health' && '🩺 健康データ'}
+              {tab === 'history' && '📅 履歴・記録'}
               {tab === 'notebooklm' && '🤖 NotebookLM'}
             </span>
-            {/* 🌙/☀️ テーマ切り替えボタン */}
             <button 
               onClick={toggleTheme} 
               class="text-sm bg-red-700 p-1.5 rounded-full hover:bg-red-800 transition"
@@ -314,7 +339,7 @@
             </button>
           </header>
 
-          {/* 送信成功通知 */}
+          {/* 通知 */}
           {sendSuccessMessage && (
             <div class="bg-green-600 text-white text-xs font-bold p-2 text-center sticky top-14 z-20 shadow">
               {sendSuccessMessage}
@@ -323,7 +348,7 @@
 
           {/* メインエリア */}
           <main class="p-4 flex-1">
-            {/* 🏋️ トレーニングタブ */}
+            {/* 🏋️ トレーニング入力 */}
             {tab === 'training' && (
               <div class="space-y-4">
                 <div class="flex justify-between items-center">
@@ -336,7 +361,6 @@
                   </button>
                 </div>
 
-                {/* 部位選択ボタン */}
                 <div class="flex gap-2 overflow-x-auto pb-1">
                   {Object.keys(categories).map(cat => (
                     <button
@@ -355,7 +379,6 @@
                   ))}
                 </div>
 
-                {/* 種目選択 */}
                 <div>
                   <label class={`block text-xs font-bold mb-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>種目</label>
                   <select 
@@ -369,7 +392,6 @@
                   </select>
                 </div>
 
-                {/* セット入力フォーム */}
                 {setsData.map((set, idx) => (
                   <div key={idx} class={`p-3 rounded-xl border shadow-sm space-y-2 ${cardClass}`}>
                     <div class="flex items-center justify-between text-sm font-bold">
@@ -417,7 +439,7 @@
                   disabled={isSending}
                   class="w-full py-3 bg-red-600 text-white font-bold rounded-xl shadow-md hover:bg-red-700 disabled:bg-gray-500"
                 >
-                  {isSending ? '保存中...' : '記録をスプレッドシートに保存'}
+                  {isSending ? '保存中...' : '記録を保存'}
                 </button>
               </div>
             )}
@@ -426,33 +448,27 @@
             {tab === 'home' && (
               <div class="space-y-4">
                 <div class={`p-4 rounded-xl border shadow-sm ${cardClass}`}>
-                  <h2 class="text-xs font-bold text-gray-400 mb-1">データ連携ステータス</h2>
-                  <p class="text-sm font-bold text-green-500 flex items-center gap-1">
-                    <span>🟢</span> Googleスプレッドシート同期中
-                  </p>
-                  <p class="text-xs text-gray-400 mt-2">
-                    入力されたデータはすべてスプレッドシートに蓄積され、NotebookLMで即座にAI分析が可能です。
+                  <h2 class="text-xs font-bold text-gray-400 mb-1">本日のトレーニング状況</h2>
+                  <p class="text-sm font-bold text-red-500">
+                    {allLogs.filter(l => l.datetime && l.datetime.includes(new Date().toISOString().split('T')[0]) && l.type === '筋トレ').length} 件の記録あり
                   </p>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                   <button onClick={() => setTab('training')} class="py-3 bg-red-600 text-white font-bold rounded-xl shadow text-sm">
                     🏋️ 筋トレ入力
                   </button>
-                  <button onClick={() => setTab('health')} class="py-3 bg-gray-800 text-white font-bold rounded-xl shadow text-sm border border-gray-700">
-                    🩺 健康・検査入力
+                  <button onClick={() => setTab('history')} class="py-3 bg-gray-800 text-white font-bold rounded-xl shadow text-sm border border-gray-700">
+                    📅 日付で振り返る
                   </button>
                 </div>
               </div>
             )}
 
-            {/* 🩺 健康・検査データ */}
+            {/* 🩺 健康データ入力 */}
             {tab === 'health' && (
               <div class={`space-y-4 text-sm p-4 rounded-xl border ${cardClass}`}>
-                <h2 class="font-bold border-b border-gray-700 pb-2 text-red-500 flex justify-between items-center">
-                  <span>健康・血液検査データ</span>
-                </h2>
+                <h2 class="font-bold border-b border-gray-700 pb-2 text-red-500">健康・血液検査データ</h2>
 
-                {/* 検査日・測定日 */}
                 <div>
                   <label class="text-xs font-bold text-gray-400">📅 検査日 / 測定日</label>
                   <input 
@@ -463,7 +479,6 @@
                   />
                 </div>
 
-                {/* 1. 糖尿病関連 */}
                 <div class="space-y-2 border-t border-gray-800 pt-3">
                   <span class="text-xs font-bold text-red-400">🩸 血糖値・HbA1c</span>
                   <div class="grid grid-cols-2 gap-2">
@@ -489,22 +504,8 @@
                       />
                     </div>
                   </div>
-                  <div>
-                    <label class="text-xs text-gray-400">血糖値の測定タイミング</label>
-                    <select 
-                      value={healthForm.timing}
-                      onChange={(e) => setHealthForm({ ...healthForm, timing: e.target.value })}
-                      class={`w-full p-2 border rounded mt-1 text-xs ${inputClass}`}
-                    >
-                      <option value="空腹時">空腹時</option>
-                      <option value="食後1時間">食後1時間</option>
-                      <option value="食後2時間">食後2時間</option>
-                      <option value="就寝前">就寝前</option>
-                    </select>
-                  </div>
                 </div>
 
-                {/* 2. 脂質（コレステロール・中性脂肪） */}
                 <div class="space-y-2 border-t border-gray-800 pt-3">
                   <span class="text-xs font-bold text-yellow-400">🧪 脂質パネル（コレステロール・中性脂肪）</span>
                   <div class="grid grid-cols-2 gap-2">
@@ -529,69 +530,6 @@
                       />
                     </div>
                   </div>
-                  <div class="grid grid-cols-2 gap-2">
-                    <div>
-                      <label class="text-xs text-gray-400">LDLコレステロール (悪玉)</label>
-                      <input 
-                        type="number" 
-                        value={healthForm.ldl}
-                        onChange={(e) => setHealthForm({ ...healthForm, ldl: e.target.value })}
-                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
-                        placeholder="120" 
-                      />
-                    </div>
-                    <div>
-                      <label class="text-xs text-gray-400">HDLコレステロール (善玉)</label>
-                      <input 
-                        type="number" 
-                        value={healthForm.hdl}
-                        onChange={(e) => setHealthForm({ ...healthForm, hdl: e.target.value })}
-                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
-                        placeholder="55" 
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. 体重・体脂肪 */}
-                <div class="space-y-2 border-t border-gray-800 pt-3">
-                  <span class="text-xs font-bold text-blue-400">⚖️ 体重・体脂肪</span>
-                  <div class="grid grid-cols-2 gap-2">
-                    <div>
-                      <label class="text-xs text-gray-400">体重 (kg)</label>
-                      <input 
-                        type="number" 
-                        step="0.1" 
-                        value={healthForm.weight}
-                        onChange={(e) => setHealthForm({ ...healthForm, weight: e.target.value })}
-                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
-                        placeholder="68.0" 
-                      />
-                    </div>
-                    <div>
-                      <label class="text-xs text-gray-400">体脂肪率 (%)</label>
-                      <input 
-                        type="number" 
-                        step="0.1" 
-                        value={healthForm.fat}
-                        onChange={(e) => setHealthForm({ ...healthForm, fat: e.target.value })}
-                        class={`w-full p-2 border rounded mt-1 ${inputClass}`} 
-                        placeholder="18.5" 
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* メモ */}
-                <div class="border-t border-gray-800 pt-3">
-                  <label class="text-xs font-bold text-gray-400">メモ（主治医のアドバイス等）</label>
-                  <input 
-                    type="text" 
-                    value={healthForm.memo}
-                    onChange={(e) => setHealthForm({ ...healthForm, memo: e.target.value })}
-                    class={`w-full p-2 border rounded mt-1 text-xs ${inputClass}`} 
-                    placeholder="例: HbA1c改善傾向。次回は2ヶ月後" 
-                  />
                 </div>
 
                 <button 
@@ -599,8 +537,58 @@
                   disabled={isSending}
                   class="w-full py-3 bg-red-600 text-white font-bold rounded-xl shadow mt-2 disabled:bg-gray-500 hover:bg-red-700"
                 >
-                  {isSending ? '保存中...' : '健康データをスプレッドシートに保存'}
+                  {isSending ? '保存中...' : '健康データを保存'}
                 </button>
+              </div>
+            )}
+
+            {/* 📅 履歴・振り返りタブ */}
+            {tab === 'history' && (
+              <div class="space-y-4">
+                <div class={`p-4 rounded-xl border space-y-3 ${cardClass}`}>
+                  <div class="flex justify-between items-center">
+                    <label class="text-xs font-bold text-gray-400">日付を選択して記録を確認</label>
+                    <button 
+                      onClick={fetchLogs} 
+                      class="text-xs bg-gray-800 border border-gray-700 px-2 py-1 rounded hover:bg-gray-700"
+                    >
+                      🔄 最新状態に更新
+                    </button>
+                  </div>
+                  <input 
+                    type="date" 
+                    value={selectedHistoryDate}
+                    onChange={(e) => setSelectedHistoryDate(e.target.value)}
+                    class={`w-full p-2.5 border rounded-lg text-sm font-bold ${inputClass}`}
+                  />
+                </div>
+
+                {isLoadingLogs ? (
+                  <div class="text-center py-8 text-xs text-gray-400">スプレッドシートから読み込み中...</div>
+                ) : filteredLogs.length === 0 ? (
+                  <div class="text-center py-8 text-xs text-gray-400">選択した日付の記録はありません</div>
+                ) : (
+                  <div class="space-y-2">
+                    {filteredLogs.map((log, index) => (
+                      <div key={index} class={`p-3 rounded-xl border text-xs space-y-1 ${cardClass}`}>
+                        <div class="flex justify-between items-center font-bold">
+                          <span class={`px-2 py-0.5 rounded text-[10px] ${
+                            log.type === '筋トレ' ? 'bg-red-900 text-red-200' : 'bg-blue-900 text-blue-200'
+                          }`}>
+                            {log.type} - {log.category}
+                          </span>
+                          <span class="text-gray-400 text-[10px]">{log.datetime}</span>
+                        </div>
+                        <div class="font-bold text-sm pt-1">{log.detail}</div>
+                        <div class="flex gap-3 text-gray-300">
+                          {log.val1 && <span>{log.val1}</span>}
+                          {log.val2 && <span>{log.val2}</span>}
+                        </div>
+                        {log.memo && <div class="text-gray-400 italic text-[11px]">💬 {log.memo}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -609,10 +597,6 @@
               <div class={`p-5 rounded-xl border text-center space-y-4 ${cardClass}`}>
                 <div class="text-4xl">🤖</div>
                 <h2 class="font-bold text-base">NotebookLM でAI分析</h2>
-                <p class="text-xs text-gray-400 leading-relaxed">
-                  蓄積された血糖値・HbA1c・コレステロール・体重・筋トレログをもとに、AIがあなたの健康とトレーニングの分析・アドバイスを行います。
-                </p>
-                
                 <a 
                   href="https://notebooklm.google.com/" 
                   target="_blank" 
@@ -621,12 +605,6 @@
                 >
                   NotebookLM を開く ↗
                 </a>
-
-                <div class="text-left text-xs text-gray-400 pt-2 border-t border-gray-700 space-y-1">
-                  <p class="font-bold text-gray-300">💡 質問の例：</p>
-                  <p>・「直近のHbA1cとコレステロール値の推移は？」</p>
-                  <p>・「中性脂肪と筋トレの頻度に関係はある？」</p>
-                </div>
               </div>
             )}
           </main>
@@ -640,7 +618,6 @@
                   <button onClick={() => setShowManageModal(false)} class="text-gray-400 font-bold text-lg">×</button>
                 </div>
                 
-                {/* 1. 部位管理 */}
                 <div class="space-y-2">
                   <label class="text-xs font-bold text-gray-400">① 部位の追加</label>
                   <div class="flex gap-2">
@@ -653,19 +630,10 @@
                     />
                     <button onClick={handleAddCategory} class="bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold">追加</button>
                   </div>
-                  <div class="flex flex-wrap gap-1.5 pt-1">
-                    {Object.keys(categories).map(cat => (
-                      <span key={cat} class="bg-gray-800 text-gray-200 border border-gray-700 text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                        {cat}
-                        <button onClick={() => handleDeleteCategory(cat)} class="text-red-400 font-bold hover:text-red-600 ml-1">×</button>
-                      </span>
-                    ))}
-                  </div>
                 </div>
 
                 <hr class="border-gray-700" />
 
-                {/* 2. 種目管理 */}
                 <div class="space-y-2">
                   <label class="text-xs font-bold text-gray-400">② 種目の追加</label>
                   <select 
@@ -688,15 +656,6 @@
                     />
                     <button onClick={handleAddExercise} class="bg-red-600 text-white px-3 py-1.5 rounded text-xs font-bold">追加</button>
                   </div>
-
-                  <div class="space-y-1 pt-1">
-                    {(categories[targetCategoryForNewEx] || []).map(ex => (
-                      <div key={ex} class="flex justify-between items-center bg-gray-800 border border-gray-700 p-2 rounded text-xs">
-                        <span>{ex}</span>
-                        <button onClick={() => handleDeleteExercise(targetCategoryForNewEx, ex)} class="text-red-400 font-bold px-2">削除</button>
-                      </div>
-                    ))}
-                  </div>
                 </div>
 
                 <button onClick={() => setShowManageModal(false)} class="w-full bg-gray-700 text-white py-2 rounded-xl text-xs font-bold">
@@ -714,11 +673,14 @@
             <button onClick={() => setTab('training')} class={`flex flex-col items-center ${tab === 'training' ? 'text-red-500 font-bold' : ''}`}>
               <span>🏋️</span>筋トレ
             </button>
+            <button onClick={() => setTab('history')} class={`flex flex-col items-center ${tab === 'history' ? 'text-red-500 font-bold' : ''}`}>
+              <span>📅</span>履歴
+            </button>
             <button onClick={() => setTab('health')} class={`flex flex-col items-center ${tab === 'health' ? 'text-red-500 font-bold' : ''}`}>
               <span>🩺</span>健康
             </button>
             <button onClick={() => setTab('notebooklm')} class={`flex flex-col items-center ${tab === 'notebooklm' ? 'text-red-500 font-bold' : ''}`}>
-              <span>🤖</span>NotebookLM
+              <span>🤖</span>AI
             </button>
           </nav>
         </div>
