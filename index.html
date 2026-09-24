@@ -53,14 +53,14 @@
       const [selectedCategory, setSelectedCategory] = useState(Object.keys(categories)[0] || '');
       const [selectedExercise, setSelectedExercise] = useState('');
 
-      // 筋トレ入力フォーム
+      // 筋トレ入力
       const [setsData, setSetsData] = useState([
         { weight: '', reps: '', memo: '' },
         { weight: '', reps: '', memo: '' },
         { weight: '', reps: '', memo: '' }
       ]);
 
-      // 健康データ入力フォーム
+      // 健康データ入力
       const [healthForm, setHealthForm] = useState({
         testDate: new Date().toISOString().split('T')[0],
         glucose: '',
@@ -75,7 +75,7 @@
         memo: ''
       });
 
-      // 履歴確認用ステート
+      // 履歴確認用
       const [selectedHistoryDate, setSelectedHistoryDate] = useState(new Date().toISOString().split('T')[0]);
       const [allLogs, setAllLogs] = useState([]);
       const [isLoadingLogs, setIsLoadingLogs] = useState(false);
@@ -98,27 +98,36 @@
         localStorage.setItem('app_categories', JSON.stringify(categories));
       }, [categories]);
 
-      // スプレッドシートからの履歴データ取得
-      const fetchLogs = async () => {
+      // JSONP方式でGASからデータを安定取得する
+      const fetchLogs = () => {
         setIsLoadingLogs(true);
-        try {
-          const res = await fetch(GAS_WEBAPP_URL);
-          const data = await res.json();
+        const callbackName = 'handleGasLogsResponse_' + Math.floor(Math.random() * 100000);
+        
+        window[callbackName] = (data) => {
           if (Array.isArray(data)) {
             setAllLogs(data);
           }
-        } catch (err) {
-          console.error("履歴取得エラー:", err);
-        } finally {
           setIsLoadingLogs(false);
-        }
+          delete window[callbackName];
+          if (script.parentNode) {
+            script.parentNode.removeChild(script);
+          }
+        };
+
+        const script = document.createElement('script');
+        script.src = `${GAS_WEBAPP_URL}?callback=${callbackName}`;
+        script.onerror = () => {
+          setIsLoadingLogs(false);
+          console.error("履歴データの取得に失敗しました");
+        };
+        document.body.appendChild(script);
       };
 
       useEffect(() => {
         fetchLogs();
       }, []);
 
-      // GASへのデータ送信
+      // データ保存
       const sendToGoogleSheets = async (payload) => {
         setIsSending(true);
         setSendSuccessMessage('');
@@ -131,7 +140,7 @@
           });
           setSendSuccessMessage('保存しました！');
           setTimeout(() => setSendSuccessMessage(''), 3000);
-          fetchLogs(); // 送信後に最新履歴を再取得
+          setTimeout(fetchLogs, 1500); // 1.5秒後に履歴を自動更新
         } catch (err) {
           alert('送信エラーが発生しました: ' + err.toString());
         } finally {
@@ -256,7 +265,7 @@
         }
       };
 
-      // 部位追加・削除
+      // 部位・種目追加・削除
       const handleAddCategory = () => {
         if (!newCategoryName.trim()) return;
         if (!categories[newCategoryName]) {
@@ -283,7 +292,6 @@
         }
       };
 
-      // 種目追加・削除
       const handleAddExercise = () => {
         if (!newExerciseName.trim() || !targetCategoryForNewEx) return;
         setCategories(prev => {
@@ -306,13 +314,13 @@
         }));
       };
 
-      // 選択した日付のログ抽出
+      // 日付に一致するログを抽出
       const filteredLogs = allLogs.filter(log => {
         if (!log.datetime) return false;
-        return log.datetime.includes(selectedHistoryDate);
+        return String(log.datetime).includes(selectedHistoryDate);
       });
 
-      // テーマ配色
+      // テーマカラー設定
       const themeClass = isDarkMode ? 'bg-gray-950 text-gray-100' : 'bg-gray-100 text-gray-800';
       const cardClass = isDarkMode ? 'bg-gray-900 border-gray-800 text-white' : 'bg-white border-gray-200 text-gray-800';
       const inputClass = isDarkMode ? 'bg-gray-800 border-gray-700 text-white placeholder-gray-500' : 'bg-white border-gray-300 text-gray-800';
@@ -450,7 +458,7 @@
                 <div class={`p-4 rounded-xl border shadow-sm ${cardClass}`}>
                   <h2 class="text-xs font-bold text-gray-400 mb-1">本日のトレーニング状況</h2>
                   <p class="text-sm font-bold text-red-500">
-                    {allLogs.filter(l => l.datetime && l.datetime.includes(new Date().toISOString().split('T')[0]) && l.type === '筋トレ').length} 件の記録あり
+                    {allLogs.filter(l => l.datetime && String(l.datetime).includes(new Date().toISOString().split('T')[0]) && l.type === '筋トレ').length} 件の記録あり
                   </p>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
@@ -542,7 +550,7 @@
               </div>
             )}
 
-            {/* 📅 履歴・振り返りタブ */}
+            {/* 📅 履歴・振り返り */}
             {tab === 'history' && (
               <div class="space-y-4">
                 <div class={`p-4 rounded-xl border space-y-3 ${cardClass}`}>
@@ -552,7 +560,7 @@
                       onClick={fetchLogs} 
                       class="text-xs bg-gray-800 border border-gray-700 px-2 py-1 rounded hover:bg-gray-700"
                     >
-                      🔄 最新状態に更新
+                      🔄 更新
                     </button>
                   </div>
                   <input 
