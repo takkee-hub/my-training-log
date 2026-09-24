@@ -16,6 +16,7 @@
     const { useState, useEffect } = React;
 
     const GAS_WEBAPP_URL = "https://script.google.com/macros/s/AKfycbxolxpP8zH9hfJLIy514aTN4ePHnxQRxLI_t6KMTBO_dJpbJ46EwifIGqX7VJeOBWde6w/exec";
+    const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSsWCCHVmaHyt4dDGO69VlBgdTRBnJPqyhuGQR5Xl6fuBnjemBmWU1nRkIo3HMzkUwWaqm_md6jm-QL/pub?output=csv";
 
     const DEFAULT_CATEGORIES = {
       '胸': ['腕立て', 'ディップス', 'ベンチプレス'],
@@ -27,6 +28,7 @@
       const [tab, setTab] = useState('training');
       const [isSending, setIsSending] = useState(false);
       const [sendSuccessMessage, setSendSuccessMessage] = useState('');
+      const [isLoadingLogs, setIsLoadingLogs] = useState(false);
 
       // テーマ管理
       const [isDarkMode, setIsDarkMode] = useState(() => {
@@ -75,12 +77,8 @@
         memo: ''
       });
 
-      // 履歴データ（LocalStorageでiPhoneでも確実保持）
-      const [allLogs, setAllLogs] = useState(() => {
-        const savedLogs = localStorage.getItem('app_logs_history_v2');
-        return savedLogs ? JSON.parse(savedLogs) : [];
-      });
-
+      // 履歴データ
+      const [allLogs, setAllLogs] = useState([]);
       const [selectedHistoryDate, setSelectedHistoryDate] = useState(new Date().toISOString().split('T')[0]);
 
       // 管理モーダル
@@ -101,14 +99,48 @@
         localStorage.setItem('app_categories', JSON.stringify(categories));
       }, [categories]);
 
+      // スプレッドシートからCSVデータを取得してパースする
+      const fetchSheetLogs = async () => {
+        setIsLoadingLogs(true);
+        try {
+          const response = await fetch(SHEET_CSV_URL + '&t=' + new Date().getTime());
+          const csvText = await response.text();
+          const lines = csvText.split('\n');
+          const logs = [];
+
+          // 1行目はヘッダーなのでスキップ (i = 1から開始)
+          for (let i = 1; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (!line) continue;
+
+            const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/).map(col => col.replace(/^"\vert{}"$/g, '').trim());
+            
+            if (cols.length >= 5) {
+              logs.push({
+                datetime: cols[0] || '',
+                type: cols[1] || '',
+                category: cols[2] || '',
+                detail: cols[3] || '',
+                val1: cols[4] || '',
+                val2: cols[5] || '',
+                memo: cols[6] || ''
+              });
+            }
+          }
+          setAllLogs(logs.reverse()); // 新しい順
+        } catch (err) {
+          console.error("CSV取得エラー:", err);
+        } finally {
+          setIsLoadingLogs(false);
+        }
+      };
+
       useEffect(() => {
-        localStorage.setItem('app_logs_history_v2', JSON.stringify(allLogs));
-      }, [allLogs]);
+        fetchSheetLogs();
+      }, []);
 
-      // ログ追加（ローカル即時保存 ＋ スプレッドシートへバックアップ送信）
+      // ログ保存（GASバックアップ送信 ＋ 履歴自動再取得）
       const saveLogItem = async (logItem) => {
-        setAllLogs(prev => [logItem, ...prev]);
-
         setIsSending(true);
         try {
           await fetch(GAS_WEBAPP_URL, {
@@ -117,6 +149,7 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(logItem)
           });
+          setTimeout(fetchSheetLogs, 2500);
         } catch (err) {
           console.error("GAS送信エラー:", err);
         } finally {
@@ -297,16 +330,13 @@
         }));
       };
 
-      // 履歴削除
-      const handleDeleteLog = (indexToDelete) => {
-        if (!confirm('この記録を削除しますか？')) return;
-        setAllLogs(prev => prev.filter((_, idx) => idx !== indexToDelete));
-      };
-
-      // 日付一致ログ抽出
+      // 日付一致ログ抽出（日付の文字列比較）
       const filteredLogs = allLogs.filter(log => {
         if (!log.datetime) return false;
-        return String(log.datetime).includes(selectedHistoryDate);
+        // 2026/9/24 などの表記にも対応できるよう部分一致
+        const logDateStr = log.datetime.split(' ')[0].replace(/\//g, '-');
+        const targetDateStr = selectedHistoryDate.replace(/-/g, '-');
+        return logDateStr.includes(targetDateStr) || targetDateStr.includes(logDateStr);
       });
 
       // テーマ配色
@@ -447,7 +477,7 @@
                 <div class={`p-4 rounded-xl border shadow-sm ${cardClass}`}>
                   <h2 class="text-xs font-bold text-gray-400 mb-1">本日のトレーニング状況</h2>
                   <p class="text-sm font-bold text-red-500">
-                    {allLogs.filter(l => l.datetime && String(l.datetime).includes(new Date().toISOString().split('T')[0]) && l.type === '筋トレ').length} 件の記録あり
+                    {allLogs.filter(l => l.datetime && l.datetime.includes(new Date().toISOString().split('T')[0]) && l.type === '筋トレ').length} 件の記録あり
                   </p>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
@@ -543,7 +573,15 @@
             {tab === 'history' && (
               <div class="space-y-4">
                 <div class={`p-4 rounded-xl border space-y-3 ${cardClass}`}>
-                  <label class="text-xs font-bold text-gray-400">日付を選択して記録を確認</label>
+                  <div class="flex justify-between items-center">
+                    <label class="text-xs font-bold text-gray-400">日付を選択して記録を確認</label>
+                    <button 
+                      onClick={fetchSheetLogs}
+                      class="text-xs bg-red-600 text-white px-3 py-1 rounded font-bold shadow hover:bg-red-700"
+                    >
+                      🔄 最新に更新
+                    </button>
+                  </div>
                   <input 
                     type="date" 
                     value={selectedHistoryDate}
@@ -552,7 +590,9 @@
                   />
                 </div>
 
-                {filteredLogs.length === 0 ? (
+                {isLoadingLogs ? (
+                  <div class="text-center py-8 text-xs text-gray-400">スプレッドシートから読み込み中...</div>
+                ) : filteredLogs.length === 0 ? (
                   <div class="text-center py-8 text-xs text-gray-400">選択した日付の記録はありません</div>
                 ) : (
                   <div class="space-y-2">
@@ -564,16 +604,7 @@
                           }`}>
                             {log.type} - {log.category}
                           </span>
-                          <div class="flex items-center gap-2">
-                            <span class="text-gray-400 text-[10px]">{log.datetime}</span>
-                            <button 
-                              onClick={() => handleDeleteLog(allLogs.indexOf(log))}
-                              class="text-red-400 font-bold px-1 hover:text-red-600"
-                              title="記録を削除"
-                            >
-                              ✕
-                            </button>
-                          </div>
+                          <span class="text-gray-400 text-[10px]">{log.datetime}</span>
                         </div>
                         <div class="font-bold text-sm pt-1">{log.detail}</div>
                         <div class="flex gap-3 text-gray-300 font-bold">
