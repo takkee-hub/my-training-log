@@ -311,12 +311,17 @@ const shiftDate = (dateStr, days) => {
 const getTrainingStreak = () => {
   const today = getJapanDate();
 
-  if (!trainingDates.includes(today)) {
+  if (trainingDates.length === 0) {
     return 0;
   }
 
+  // 今日トレーニング済みなら今日から数える
+  // まだなら昨日から数える
+  let currentDate = trainingDates.includes(today)
+    ? today
+    : shiftDate(today, -1);
+
   let streak = 0;
-  let currentDate = today;
 
   while (trainingDates.includes(currentDate)) {
     streak++;
@@ -1268,20 +1273,29 @@ const handleAddTrainingSet = () => {
                     </span>
 
                   </p>
-                  <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="mt-5 pt-5 border-t border-gray-200 text-center">
 
-                    <h2 className="text-xs font-bold text-gray-400 mb-1">
-                      🔥 連続トレーニング
-                    </h2>
+  <h2 className="text-sm font-bold text-gray-400 mb-2">
+    連続トレーニング
+  </h2>
 
-                    <p className="text-2xl font-bold text-red-500">
-                      {getTrainingStreak()}
-                      <span className="text-sm ml-2">
-                        日連続
-                      </span>
-                    </p>
+  <div className="flex items-center justify-center gap-2">
 
-                  </div>
+    <span className="text-5xl">
+      🔥
+    </span>
+
+    <span className="text-6xl font-black text-red-500 leading-none">
+      {getTrainingStreak()}
+    </span>
+
+  </div>
+
+  <p className="mt-2 text-lg font-bold text-gray-500">
+    日連続
+  </p>
+
+</div>
                 </div>
 
                 {/* ==================================================
