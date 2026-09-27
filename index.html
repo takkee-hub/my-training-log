@@ -526,6 +526,7 @@ const selectedTrainingLogs =
         }, 3000);
       };
 
+      
 
       // ============================================================
       // 筋トレ保存
@@ -1457,6 +1458,16 @@ const selectedTrainingLogs =
 
                 ))}
 
+                <button
+                  onClick={handleAddTrainingSet}
+                  className={`w-full py-3 border-2 border-dashed rounded-xl font-bold text-sm ${
+                    isDarkMode
+                      ? "border-gray-700 text-gray-300"
+                      : "border-gray-300 text-gray-600"
+                  }`}
+                >
+                  ＋ セット追加
+                </button>
 
                 <button
                   onClick={
