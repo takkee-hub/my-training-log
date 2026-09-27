@@ -2357,20 +2357,29 @@ const handleAddTrainingSet = () => {
                     📅 日付を選択
                   </label>
 
+<div style={{ width: "100%", overflow: "hidden" }}>
 
-                  <input
-                    type="date"
-                    value={
-                      selectedHistoryDate
-                    }
-                    onChange={e =>
-                      setSelectedHistoryDate(
-                        e.target.value
-                      )
-                    }
-                    className={`w-full p-3 border rounded-lg text-sm font-bold ${inputClass}`}
-                  />
+  <input
+    type="date"
+    value={selectedHistoryDate}
+    onChange={e =>
+      setSelectedHistoryDate(
+        e.target.value
+      )
+    }
+    style={{
+      display: "block",
+      width: "100%",
+      maxWidth: "100%",
+      minWidth: "0",
+      boxSizing: "border-box",
+      WebkitAppearance: "none",
+      appearance: "none"
+    }}
+    className={`p-3 border rounded-lg text-sm font-bold ${inputClass}`}
+  />
 
+</div>                  
                 </div>
 
 
