@@ -80,7 +80,36 @@
       const [sendSuccessMessage, setSendSuccessMessage] =
         useState("");
 
+      // ============================================================
+      // カレンダー表示月
+      // ============================================================
 
+      const [calendarDate, setCalendarDate] = useState(
+        new Date()
+      );
+      // ============================================================
+      // カレンダー用の日付計算
+      // ============================================================
+
+      const calendarYear =
+        calendarDate.getFullYear();
+
+      const calendarMonth =
+        calendarDate.getMonth();
+
+      const firstDay =
+        new Date(
+          calendarYear,
+          calendarMonth,
+          1
+        ).getDay();
+
+      const daysInMonth =
+        new Date(
+          calendarYear,
+          calendarMonth + 1,
+          0
+        ).getDate();      
       // ============================================================
       // テーマ
       // ============================================================
@@ -1255,6 +1284,125 @@ const handleAddTrainingSet = () => {
                   </div>
                 </div>
 
+                {/* ==================================================
+                    トレーニングカレンダー
+                ================================================== */}
+
+                <div className={`p-5 rounded-2xl border shadow-sm ${cardClass}`}>
+
+                  <div className="flex justify-between items-center mb-4">
+
+                    <button
+                      onClick={() =>
+                        setCalendarDate(
+                          new Date(
+                            calendarYear,
+                            calendarMonth - 1,
+                            1
+                          )
+                        )
+                      }
+                      className="px-3 py-2 text-lg font-bold"
+                    >
+                      ‹
+                    </button>
+
+                    <h2 className="font-bold">
+                      {calendarYear}年 {calendarMonth + 1}月
+                    </h2>
+
+                    <button
+                      onClick={() =>
+                        setCalendarDate(
+                          new Date(
+                            calendarYear,
+                            calendarMonth + 1,
+                            1
+                          )
+                        )
+                      }
+                      className="px-3 py-2 text-lg font-bold"
+                    >
+                      ›
+                    </button>
+
+                  </div>
+
+
+                  <div className="grid grid-cols-7 text-center text-xs font-bold text-gray-400 mb-2">
+
+                    <div>日</div>
+                    <div>月</div>
+                    <div>火</div>
+                    <div>水</div>
+                    <div>木</div>
+                    <div>金</div>
+                    <div>土</div>
+
+                  </div>
+
+
+                  <div className="grid grid-cols-7 gap-y-2 text-center">
+
+                    {Array.from({
+                      length: firstDay
+                    }).map((_, index) => (
+                      <div key={`empty-${index}`} />
+                    ))}
+
+
+                    {Array.from({
+                      length: daysInMonth
+                    }).map((_, index) => {
+
+                      const day = index + 1;
+
+                      const dateStr =
+                        `${calendarYear}-${String(
+                          calendarMonth + 1
+                        ).padStart(2, "0")}-${String(
+                          day
+                        ).padStart(2, "0")}`;
+
+                      const isTraining =
+                        trainingDates.includes(dateStr);
+
+                      const isToday =
+                        dateStr === getJapanDate();
+
+                      return (
+
+                        <div
+                          key={dateStr}
+                          className="flex justify-center"
+                        >
+
+                          <div
+                            className={`w-9 h-9 flex items-center justify-center rounded-full text-sm font-bold ${
+                              isTraining
+                                ? "bg-red-500 text-white"
+                                : isToday
+                                  ? "border-2 border-red-500 text-red-500"
+                                  : ""
+                            }`}
+                          >
+                            {day}
+                          </div>
+
+                        </div>
+
+                      );
+
+                    })}
+
+                  </div>
+
+
+                  <div className="mt-4 text-xs text-gray-400 text-center">
+                    ● トレーニングした日
+                  </div>
+
+                </div>
 
                 <div className="grid grid-cols-2 gap-3">
 
