@@ -269,7 +269,33 @@ const trainingDates = [
   )
 ].sort().reverse();
 
+// ============================================================
+// 連続トレーニング日数
+// ============================================================
 
+const shiftDate = (dateStr, days) => {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d + days));
+  return date.toISOString().slice(0, 10);
+};
+
+const getTrainingStreak = () => {
+  const today = getJapanDate();
+
+  if (!trainingDates.includes(today)) {
+    return 0;
+  }
+
+  let streak = 0;
+  let currentDate = today;
+
+  while (trainingDates.includes(currentDate)) {
+    streak++;
+    currentDate = shiftDate(currentDate, -1);
+  }
+
+  return streak;
+};
 // ============================================================
 // 選択した健康日の記録
 // ============================================================
@@ -1213,7 +1239,20 @@ const handleAddTrainingSet = () => {
                     </span>
 
                   </p>
+                  <div className="mt-4 pt-4 border-t border-gray-200">
 
+                    <h2 className="text-xs font-bold text-gray-400 mb-1">
+                      🔥 連続トレーニング
+                    </h2>
+
+                    <p className="text-2xl font-bold text-red-500">
+                      {getTrainingStreak()}
+                      <span className="text-sm ml-2">
+                        日連続
+                      </span>
+                    </p>
+
+                  </div>
                 </div>
 
 
