@@ -256,6 +256,25 @@
         useState(getJapanDate());
 
       // ============================================================
+      // 過去データ追加・編集
+      // ============================================================
+
+      const emptyHistoryEditForm = {
+        id: "",
+        datetime: getJapanDate(),
+        type: "筋トレ",
+        category: "",
+        detail: "",
+        val1: "",
+        val2: "",
+        memo: ""
+      };
+
+      const [historyEditMode, setHistoryEditMode] = useState(null);
+      const [historyEditForm, setHistoryEditForm] =
+        useState(emptyHistoryEditForm);
+
+      // ============================================================
       // ホームカレンダーで選択した日の全記録
       // ============================================================
 
@@ -1137,6 +1156,104 @@ const handleAddTrainingSet = () => {
                 ex => ex !== exToDelete
               )
         }));
+      };
+
+
+      // ============================================================
+      // 過去データ追加・編集
+      // ============================================================
+
+      const openHistoryEdit = (log) => {
+        setHistoryEditForm({
+          id: log.id || "",
+          datetime: String(log.datetime || getJapanDate()).slice(0, 10),
+          type: log.type || "",
+          category: log.category || "",
+          detail: log.detail || "",
+          val1: log.val1 || "",
+          val2: log.val2 || "",
+          memo: log.memo || ""
+        });
+        setHistoryEditMode("edit");
+      };
+
+      const openHistoryAdd = () => {
+        setHistoryEditForm({
+          ...emptyHistoryEditForm,
+          datetime: selectedHistoryDate || getJapanDate()
+        });
+        setHistoryEditMode("add");
+      };
+
+      const closeHistoryEditor = () => {
+        setHistoryEditMode(null);
+      };
+
+      const handleSaveHistoryEdit = async () => {
+
+        if (!historyEditForm.datetime) {
+          alert("日付を入力してください");
+          return;
+        }
+
+        if (!historyEditForm.type) {
+          alert("タイプを入力してください");
+          return;
+        }
+
+        if (historyEditMode === "edit" && !historyEditForm.id) {
+          alert("この記録にはIDがありません。履歴を再読み込みしてからお試しください。");
+          return;
+        }
+
+        const payload = {
+          ...historyEditForm,
+          ...(historyEditMode === "edit"
+            ? { action: "update" }
+            : {})
+        };
+
+        setIsSending(true);
+
+        try {
+          await fetch(GAS_WEBAPP_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify(payload)
+          });
+
+          if (historyEditMode === "edit") {
+            setAllLogs(prev =>
+              prev.map(log =>
+                log.id === historyEditForm.id
+                  ? { ...log, ...historyEditForm }
+                  : log
+              )
+            );
+          } else {
+            // 新規IDはGAS側で発行されるため、送信後にGASから再取得する
+            await new Promise(resolve => setTimeout(resolve, 500));
+          }
+
+          await loadLogsFromGAS();
+
+          alert(
+            historyEditMode === "edit"
+              ? "変更を保存しました"
+              : "過去の記録を追加しました"
+          );
+
+          closeHistoryEditor();
+
+        } catch (err) {
+          console.error("履歴保存エラー:", err);
+          alert("保存に失敗しました。通信状態を確認してください。");
+        } finally {
+          setIsSending(false);
+        }
       };
 
 
@@ -2591,6 +2708,14 @@ const handleAddTrainingSet = () => {
                 </div>
 
 
+                <button
+                  type="button"
+                  onClick={openHistoryAdd}
+                  className="w-full mb-4 py-3 rounded-xl font-bold bg-blue-600 text-white"
+                >
+                  ＋ この日に記録を追加
+                </button>
+
                 {filteredLogs.length === 0 ? (
 
                   <div className="text-center py-10 text-xs text-gray-400">
@@ -2636,16 +2761,27 @@ const handleAddTrainingSet = () => {
                               </span>
 
 
-                              <button
-                                onClick={() =>
-                                  handleDeleteLog(
-                                    originalIndex
-                                  )
-                                }
-                                className="text-red-400 font-bold px-2"
-                              >
-                                ✕
-                              </button>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => openHistoryEdit(log)}
+                                  className="text-blue-400 font-bold px-2 py-1"
+                                >
+                                  ✏️ 編集
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleDeleteLog(
+                                      originalIndex
+                                    )
+                                  }
+                                  className="text-red-400 font-bold px-2 py-1"
+                                >
+                                  ✕
+                                </button>
+                              </div>
 
                             </div>
 
@@ -2698,6 +2834,160 @@ const handleAddTrainingSet = () => {
 
               </div>
 
+            )}
+
+
+            {historyEditMode && (
+              <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center p-3">
+                <div
+                  className={`w-full max-w-lg rounded-2xl p-4 max-h-[90%] overflow-y-auto ${cardClass}`}
+                >
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-lg">
+                      {historyEditMode === "edit"
+                        ? "✏️ 過去の記録を編集"
+                        : "＋ 過去の記録を追加"}
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={closeHistoryEditor}
+                      className="px-3 py-2 text-gray-400 font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-bold text-gray-400">日付</label>
+                      <input
+                        type="date"
+                        value={historyEditForm.datetime}
+                        onChange={e =>
+                          setHistoryEditForm(prev => ({
+                            ...prev,
+                            datetime: e.target.value
+                          }))
+                        }
+                        className={`w-full mt-1 p-3 border rounded-lg ${inputClass}`}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-gray-400">タイプ</label>
+                      <select
+                        value={historyEditForm.type}
+                        onChange={e =>
+                          setHistoryEditForm(prev => ({
+                            ...prev,
+                            type: e.target.value
+                          }))
+                        }
+                        className={`w-full mt-1 p-3 border rounded-lg ${inputClass}`}
+                      >
+                        <option value="筋トレ">筋トレ</option>
+                        <option value="糖尿病">糖尿病</option>
+                        <option value="血液検査">血液検査</option>
+                        <option value="体組成">体組成</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-gray-400">部位・項目</label>
+                      <input
+                        type="text"
+                        value={historyEditForm.category}
+                        onChange={e =>
+                          setHistoryEditForm(prev => ({
+                            ...prev,
+                            category: e.target.value
+                          }))
+                        }
+                        className={`w-full mt-1 p-3 border rounded-lg ${inputClass}`}
+                        placeholder="例：胸、血糖値、HbA1c"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-gray-400">種目・詳細</label>
+                      <input
+                        type="text"
+                        value={historyEditForm.detail}
+                        onChange={e =>
+                          setHistoryEditForm(prev => ({
+                            ...prev,
+                            detail: e.target.value
+                          }))
+                        }
+                        className={`w-full mt-1 p-3 border rounded-lg ${inputClass}`}
+                        placeholder="例：腕立て (1セット目)、空腹時"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-bold text-gray-400">数値1</label>
+                        <input
+                          type="text"
+                          value={historyEditForm.val1}
+                          onChange={e =>
+                            setHistoryEditForm(prev => ({
+                              ...prev,
+                              val1: e.target.value
+                            }))
+                          }
+                          className={`w-full mt-1 p-3 border rounded-lg ${inputClass}`}
+                          placeholder="例：50 kg"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-bold text-gray-400">数値2</label>
+                        <input
+                          type="text"
+                          value={historyEditForm.val2}
+                          onChange={e =>
+                            setHistoryEditForm(prev => ({
+                              ...prev,
+                              val2: e.target.value
+                            }))
+                          }
+                          className={`w-full mt-1 p-3 border rounded-lg ${inputClass}`}
+                          placeholder="例：10 回"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-gray-400">メモ</label>
+                      <textarea
+                        rows="2"
+                        value={historyEditForm.memo}
+                        onChange={e =>
+                          setHistoryEditForm(prev => ({
+                            ...prev,
+                            memo: e.target.value
+                          }))
+                        }
+                        className={`w-full mt-1 p-3 border rounded-lg ${inputClass}`}
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isSending}
+                      onClick={handleSaveHistoryEdit}
+                      className="w-full py-3 rounded-xl font-bold bg-blue-600 text-white disabled:opacity-50"
+                    >
+                      {isSending
+                        ? "保存中..."
+                        : historyEditMode === "edit"
+                          ? "💾 変更を保存"
+                          : "💾 記録を追加"}
+                    </button>
+                  </div>
+                </div>
+              </div>
             )}
 
 
