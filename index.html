@@ -1341,15 +1341,31 @@ const handleAddTrainingSet = () => {
             className="bg-red-600 text-white p-4 font-bold text-lg text-center sticky top-0 z-10 shadow flex justify-between items-center"
           >
 
-            <span
-              className="text-xs bg-red-700 px-2 py-1 rounded"
-            >
-              Sync Sheet
-            </span>
+            <button
+  type="button"
+  onClick={async () => {
+    setIsSending(true);
 
+    try {
+      await loadLogsFromGAS();
+      setSendSuccessMessage("スプレッドシートと同期しました！");
 
-            <span>
+      setTimeout(() => {
+        setSendSuccessMessage("");
+      }, 3000);
 
+    } catch (err) {
+      console.error("同期エラー:", err);
+      alert("同期に失敗しました");
+    } finally {
+      setIsSending(false);
+    }
+  }}
+  disabled={isSending}
+  className="text-xs bg-red-700 px-2 py-1 rounded font-bold disabled:opacity-50"
+>
+  {isSending ? "同期中..." : "Sync Sheet"}
+</button>
               {tab === "home" &&
                 "🏠 ホーム"}
 
