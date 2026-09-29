@@ -2521,30 +2521,6 @@ const handleAddTrainingSet = () => {
                 </div>
 
 
-                {/* AI健康アドバイス */}
-                <div className={`p-4 rounded-xl border ${isDarkMode ? "bg-gray-800 border-gray-700" : "bg-blue-50 border-blue-200"}`}>
-                  <div className="flex items-center justify-between gap-3 mb-3">
-                    <div>
-                      <div className="text-sm font-bold text-blue-400">🤖 AI健康アドバイス</div>
-                      <div className="text-[10px] text-gray-400 mt-1">健康データと過去の推移をAIで確認</div>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => alert("AI健康アドバイス機能は次のステップで接続します") }
-                    className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl text-sm shadow"
-                  >
-                    ✨ AIに分析してもらう
-                  </button>
-
-                  <div className={`mt-3 p-3 rounded-lg text-xs leading-relaxed ${isDarkMode ? "bg-gray-900 text-gray-400" : "bg-white text-gray-500"}`}>
-                    AI分析結果はここに表示されます。
-                    <br />
-                    ※医療上の診断ではありません。治療や薬については医師に確認してください。
-                  </div>
-                </div>
-
                 <button
                   onClick={
                     handleSaveHealth
