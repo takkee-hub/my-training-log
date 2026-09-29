@@ -1262,21 +1262,78 @@ const handleAddTrainingSet = () => {
       // ============================================================
 
       const handleDeleteLog =
-        (indexToDelete) => {
+        async (indexToDelete) => {
+
+        const targetLog = allLogs[indexToDelete];
+
+        if (!targetLog) {
+          alert("削除する記録が見つかりません。");
+          return;
+        }
+
+        if (!targetLog.id) {
+          alert(
+            "この記録にはIDがありません。Sync Sheetで同期してから、もう一度お試しください。"
+          );
+          return;
+        }
 
         if (
           !confirm(
-            "この記録を削除しますか？"
+            "この記録をGoogleスプレッドシートからも削除しますか？"
           )
         ) return;
 
+        setIsSending(true);
 
-        setAllLogs(prev =>
-          prev.filter(
-            (_, idx) =>
-              idx !== indexToDelete
-          )
-        );
+        try {
+
+          await fetch(
+            GAS_WEBAPP_URL,
+            {
+              method: "POST",
+              mode: "no-cors",
+              headers: {
+                "Content-Type":
+                  "application/json"
+              },
+              body: JSON.stringify({
+                action: "delete",
+                id: targetLog.id
+              })
+            }
+          );
+
+          // GAS側の削除反映を少し待ってから再同期
+          await new Promise(
+            resolve => setTimeout(resolve, 700)
+          );
+
+          await loadLogsFromGAS();
+
+          setSendSuccessMessage(
+            "記録を削除しました！"
+          );
+
+          setTimeout(() => {
+            setSendSuccessMessage("");
+          }, 3000);
+
+        } catch (err) {
+
+          console.error(
+            "削除エラー:",
+            err
+          );
+
+          alert(
+            "削除に失敗しました。通信状態を確認してください。"
+          );
+
+        } finally {
+
+          setIsSending(false);
+        }
       };
 
 
