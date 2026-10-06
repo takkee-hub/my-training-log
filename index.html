@@ -1454,7 +1454,7 @@ const handleAddTrainingSet = () => {
         >
 
           <header
-            className="bg-red-600 text-white p-4 font-bold text-lg text-center sticky top-0 z-10 shadow flex justify-between items-center"
+            className="bg-red-600 text-white p-4 font-bold text-lg text-center sticky top-0 z-10 shadow relative flex justify-between items-center"
           >
 
             <button
@@ -1483,7 +1483,7 @@ const handleAddTrainingSet = () => {
   {isSending ? "同期中..." : "Sync Sheet"}
 </button>
 
-            <span>
+            <span className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap pointer-events-none">
               {tab === "home" &&
                 "🏠 ホーム"}
 
