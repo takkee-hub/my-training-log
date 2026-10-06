@@ -175,6 +175,56 @@
 
 
       // ============================================================
+      // 種目ごとの参考動画
+      // ============================================================
+
+      const [exerciseVideos, setExerciseVideos] = useState(() => {
+        const saved = localStorage.getItem("app_exercise_videos");
+        return saved ? JSON.parse(saved) : {};
+      });
+
+      const [videoEditExercise, setVideoEditExercise] = useState("");
+      const [videoUrlInput, setVideoUrlInput] = useState("");
+
+      const getYouTubeId = (url) => {
+        if (!url) return "";
+        try {
+          const parsed = new URL(url);
+          if (parsed.hostname.includes("youtu.be")) {
+            return parsed.pathname.split("/").filter(Boolean)[0] || "";
+          }
+          if (parsed.hostname.includes("youtube.com")) {
+            if (parsed.pathname === "/watch") return parsed.searchParams.get("v") || "";
+            const parts = parsed.pathname.split("/").filter(Boolean);
+            if (["shorts", "embed", "live"].includes(parts[0])) return parts[1] || "";
+          }
+        } catch (e) {}
+        return "";
+      };
+
+      const openVideoEditor = (exercise) => {
+        setVideoEditExercise(exercise);
+        setVideoUrlInput(exerciseVideos[exercise] || "");
+      };
+
+      const saveExerciseVideo = () => {
+        const url = videoUrlInput.trim();
+        if (url && !getYouTubeId(url)) {
+          alert("YouTubeのURLを入力してください");
+          return;
+        }
+        setExerciseVideos(prev => {
+          const updated = { ...prev };
+          if (url) updated[videoEditExercise] = url;
+          else delete updated[videoEditExercise];
+          return updated;
+        });
+        setVideoEditExercise("");
+        setVideoUrlInput("");
+      };
+
+
+      // ============================================================
       // 筋トレ入力
       // ============================================================
 
@@ -455,6 +505,14 @@ const selectedTrainingLogs =
         );
 
       }, [categories]);
+
+
+      useEffect(() => {
+        localStorage.setItem(
+          "app_exercise_videos",
+          JSON.stringify(exerciseVideos)
+        );
+      }, [exerciseVideos]);
 
 
       useEffect(() => {
@@ -1863,6 +1921,37 @@ const handleAddTrainingSet = () => {
                   </select>
 
                 </div>
+
+
+                {selectedExercise && exerciseVideos[selectedExercise] && (() => {
+                  const videoUrl = exerciseVideos[selectedExercise];
+                  const videoId = getYouTubeId(videoUrl);
+                  return (
+                    <a
+                      href={videoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`block overflow-hidden rounded-2xl border shadow-sm ${cardClass}`}
+                    >
+                      {videoId && (
+                        <img
+                          src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`}
+                          alt={`${selectedExercise} の参考動画`}
+                          className="w-full aspect-video object-cover"
+                        />
+                      )}
+                      <div className="p-3 flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-xs text-gray-400">🎥 参考動画</div>
+                          <div className="font-bold text-sm mt-1">{selectedExercise}のやり方を確認</div>
+                        </div>
+                        <span className="shrink-0 bg-red-600 text-white px-3 py-2 rounded-lg text-xs font-bold">
+                          ▶ YouTube
+                        </span>
+                      </div>
+                    </a>
+                  );
+                })()}
 
 
                 {setsData.map(
@@ -3280,22 +3369,36 @@ const handleAddTrainingSet = () => {
                             className="flex justify-between items-center text-xs border-t border-gray-700/50 py-2"
                           >
 
-                            <span>
+                            <span className="font-bold">
                               {ex}
                             </span>
 
 
-                            <button
-                              onClick={() =>
-                                handleDeleteExercise(
-                                  cat,
-                                  ex
-                                )
-                              }
-                              className="text-red-400 px-2"
-                            >
-                              ✕
-                            </button>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => openVideoEditor(ex)}
+                                className={`px-2 py-1 rounded font-bold ${
+                                  exerciseVideos[ex]
+                                    ? "text-green-400"
+                                    : "text-blue-400"
+                                }`}
+                              >
+                                🎥 {exerciseVideos[ex] ? "動画変更" : "動画設定"}
+                              </button>
+
+                              <button
+                                onClick={() =>
+                                  handleDeleteExercise(
+                                    cat,
+                                    ex
+                                  )
+                                }
+                                className="text-red-400 px-2"
+                              >
+                                ✕
+                              </button>
+                            </div>
 
                           </div>
 
@@ -3333,6 +3436,70 @@ const handleAddTrainingSet = () => {
 
             </div>
 
+          )}
+
+
+          {videoEditExercise && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-[60]">
+              <div className={`rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-xl ${cardClass}`}>
+                <div className="flex justify-between items-center">
+                  <h3 className="font-bold">🎥 参考動画を設定</h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVideoEditExercise("");
+                      setVideoUrlInput("");
+                    }}
+                    className="text-gray-400 font-bold text-xl px-2"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="text-sm font-bold text-red-400">
+                  {videoEditExercise}
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-gray-400">YouTube URL</label>
+                  <input
+                    type="url"
+                    value={videoUrlInput}
+                    onChange={e => setVideoUrlInput(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    className={`w-full mt-1 p-3 border rounded-lg text-sm ${inputClass}`}
+                  />
+                  <div className="text-[10px] text-gray-400 mt-2">
+                    YouTubeの「共有」からコピーしたURLも使えます。
+                  </div>
+                </div>
+
+                {getYouTubeId(videoUrlInput) && (
+                  <img
+                    src={`https://img.youtube.com/vi/${getYouTubeId(videoUrlInput)}/hqdefault.jpg`}
+                    alt="動画プレビュー"
+                    className="w-full aspect-video object-cover rounded-xl"
+                  />
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setVideoUrlInput("")}
+                    className="py-3 rounded-xl bg-gray-700 text-white text-xs font-bold"
+                  >
+                    動画を削除
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveExerciseVideo}
+                    className="py-3 rounded-xl bg-red-600 text-white text-xs font-bold"
+                  >
+                    💾 保存
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
 
