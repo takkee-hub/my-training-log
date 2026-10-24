@@ -419,6 +419,66 @@ const getTrainingStreak = () => {
   return streak;
 };
 // ============================================================
+// 継続日数に応じた応援メッセージ
+// 大きな節目を優先し、次の節目まで表示を維持する
+// ============================================================
+const getStreakMessage = (days) => {
+  if (days <= 0) {
+    return { title: "🔥 連続記録", message: "今日から新しい一歩を始めよう！" };
+  }
+
+  const milestones = [
+    { day: 10, title: "🎉 頑張っているね！", message: "10日間の積み重ね、素晴らしい！" },
+    { day: 20, title: "💪 いい習慣になってきた！", message: "続ける力が育っているね" },
+    { day: 30, title: "🏆 1か月達成！", message: "続けてきた自分を褒めよう" },
+    { day: 40, title: "🔥 この調子！", message: "今日までの一歩一歩が力になる" },
+    { day: 50, title: "💪 50日達成！", message: "積み重ねが力になる" },
+    { day: 60, title: "🌱 もう立派な習慣です", message: "無理せず自分のペースで続けよう" },
+    { day: 70, title: "🔥 継続は力なり！", message: "続けていることが何よりの成果" },
+    { day: 80, title: "💪 ここまで来た！", message: "自分の頑張りを認めよう" },
+    { day: 90, title: "🏆 3か月達成！", message: "もう立派な習慣です" },
+    { day: 100, title: "🎉 100日達成！", message: "素晴らしい積み重ね！" },
+    { day: 180, title: "🏆 半年達成！", message: "半年間の継続、本当にすごい！" }
+  ];
+
+  // 365日を1年として扱う。周年は365日ごとに更新する。
+  const years = Math.floor(days / 365);
+  if (years >= 1) {
+    milestones.push({
+      day: years * 365,
+      title: `👑 ${years}年間継続！`,
+      message: years === 1
+        ? "積み重ねた365日は大きな財産です"
+        : "積み重ねは裏切らない！"
+    });
+  }
+
+  // 100日以降は10日ごと。ただし180日・周年は特別メッセージを優先。
+  if (days >= 110) {
+    const tenDayMark = Math.floor(days / 10) * 10;
+    if (tenDayMark !== 180 && tenDayMark % 365 !== 0) {
+      milestones.push({
+        day: tenDayMark,
+        title: `💪 ${tenDayMark}日継続中！`,
+        message: "この調子で、自分のペースを大切に！"
+      });
+    }
+  }
+
+  const reached = milestones
+    .filter(item => item.day <= days)
+    .sort((a, b) => b.day - a.day);
+
+  return reached[0] || {
+    title: "🔥 連続記録",
+    message: "今日の一歩が、明日の自分をつくる"
+  };
+};
+
+const trainingStreak = getTrainingStreak();
+const streakMessage = getStreakMessage(trainingStreak);
+
+// ============================================================
 // 選択した健康日の記録
 // ============================================================
 
@@ -1571,15 +1631,24 @@ const handleAddTrainingSet = () => {
 <div className="text-center">
 
   <div className="text-sm font-bold text-gray-400 mb-3">
-    連続トレーニング🔥
+    🔥 連続記録
   </div>
 
   <div className="text-7xl font-black text-red-500 leading-none">
-    {getTrainingStreak()}
+    {trainingStreak}
   </div>
 
   <div className="mt-3 text-lg font-bold text-gray-500">
     日連続
+  </div>
+
+  <div className="mt-4 pt-4 border-t border-gray-200/50">
+    <div className="text-base font-bold text-red-500">
+      {streakMessage.title}
+    </div>
+    <div className="mt-2 text-sm text-gray-400">
+      {streakMessage.message}
+    </div>
   </div>
 
 </div>
