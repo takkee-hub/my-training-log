@@ -2145,7 +2145,7 @@ const handleAddTrainingSet = () => {
 
     <div className="space-y-2">
 
-      {trainingDates.map(date => (
+      {trainingDates.slice(0, 10).map(date => (
 
         <button
           key={date}
