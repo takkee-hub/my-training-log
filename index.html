@@ -226,6 +226,38 @@
 
 
       // ============================================================
+      // 部位・種目・参考動画のバックアップ（書き出し専用）
+      // ============================================================
+      const exportExerciseSettings = () => {
+        try {
+          // 表示中のstateではなく、実際に端末に保存されている値を使用
+          const savedCategories = localStorage.getItem("app_categories");
+          const savedVideos = localStorage.getItem("app_exercise_videos");
+          const backup = {
+            format: "health-training-log-exercise-settings-v1",
+            exportedAt: new Date().toISOString(),
+            categories: savedCategories ? JSON.parse(savedCategories) : categories,
+            exerciseVideos: savedVideos ? JSON.parse(savedVideos) : exerciseVideos
+          };
+          const blob = new Blob([JSON.stringify(backup, null, 2)], {
+            type: "application/json;charset=utf-8"
+          });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `health-training-exercises-${getJapanDate()}.json`;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 10000);
+          alert("バックアップファイルを書き出しました。iPhoneの『ファイル』アプリで保存を確認してください。設定データは変更していません。");
+        } catch (error) {
+          console.error("種目設定バックアップエラー:", error);
+          alert("バックアップの作成に失敗しました。設定データは変更していません。");
+        }
+      };
+
+      // ============================================================
       // 筋トレ入力
       // ============================================================
 
@@ -3413,6 +3445,24 @@ const handleAddTrainingSet = () => {
 
                 <hr className="border-gray-700" />
 
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-400">
+                    💾 部位・種目・動画設定のバックアップ
+                  </label>
+                  <p className="text-xs text-gray-400">
+                    この端末に登録した部位・種目とYouTube動画URLをJSONファイルとして保存します。トレーニング・健康履歴は含みません。
+                  </p>
+                  <button
+                    type="button"
+                    onClick={exportExerciseSettings}
+                    className="w-full py-3 rounded-xl bg-blue-600 text-white text-sm font-bold"
+                  >
+                    📥 種目・動画設定をバックアップ
+                  </button>
+                </div>
+
+                <hr className="border-gray-700" />
 
                 <div className="space-y-3">
 
