@@ -16,6 +16,21 @@
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .reminder-time {
+      display: block;
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .reminder-time::-webkit-date-and-time-value {
+      min-width: 0;
+      margin: 0;
+    }
+  </style>
 </head>
 
 <body class="antialiased selection:bg-red-500 selection:text-white">
@@ -3549,9 +3564,9 @@ const handleAddTrainingSet = () => {
                      <input type="checkbox" checked={reminderEnabled} onChange={e => setReminderEnabled(e.target.checked)} className="w-5 h-5" />
                      リマインダーを使う
                    </label>
-                   <label className="block text-xs text-gray-400">お知らせの時間</label>
-                   <input type="time" value={reminderTime} onChange={e => setReminderTime(e.target.value)}
-                     className={`w-full p-3 border rounded-lg ${inputClass}`} />
+                   <label htmlFor="reminder-time" className="block text-xs text-gray-400">お知らせの時間</label>
+                   <input id="reminder-time" type="time" value={reminderTime} onChange={e => setReminderTime(e.target.value)}
+                     className={`reminder-time p-3 border rounded-lg ${inputClass}`} />
                    <label className="block text-xs text-gray-400">お知らせの内容</label>
                    <select value={reminderMode} onChange={e => setReminderMode(e.target.value)} className={`w-full p-3 border rounded-lg ${inputClass}`}>
                      <option value="both">運動・記録の両方</option>
