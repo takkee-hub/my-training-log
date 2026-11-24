@@ -258,6 +258,109 @@
       };
 
       // ============================================================
+      // 部位・種目・動画設定の復元（履歴には触れない）
+      // ============================================================
+      const [importPreview, setImportPreview] = useState(null);
+      const [importFileName, setImportFileName] = useState("");
+      const [importError, setImportError] = useState("");
+      const importFileRef = React.useRef(null);
+
+      const validateExerciseBackup = (data) => {
+        if (!data || typeof data !== "object" || Array.isArray(data) ||
+            data.format !== "health-training-log-exercise-settings-v1") {
+          throw new Error("対応していないバックアップ形式です。");
+        }
+        const cats = data.categories;
+        const videos = data.exerciseVideos;
+        if (!cats || typeof cats !== "object" || Array.isArray(cats) ||
+            !videos || typeof videos !== "object" || Array.isArray(videos)) {
+          throw new Error("部位・種目または動画設定の形式が正しくありません。");
+        }
+        const names = Object.keys(cats);
+        if (!names.length || names.length > 100) {
+          throw new Error("部位がないか、部位数が多すぎます。");
+        }
+        let count = 0;
+        for (const name of names) {
+          if (!name.trim() || name.length > 100 ||
+              !Array.isArray(cats[name]) || cats[name].length > 200 ||
+              cats[name].some(ex => typeof ex !== "string" || !ex.trim() || ex.length > 150)) {
+            throw new Error("部位・種目の内容が正しくありません。");
+          }
+          count += cats[name].length;
+        }
+        if (count > 2000 || Object.keys(videos).length > 2000 ||
+            Object.entries(videos).some(([name, url]) =>
+              !name.trim() || name.length > 150 || typeof url !== "string" ||
+              url.length > 2000 || (url && !getYouTubeId(url)))) {
+          throw new Error("動画設定に不正なデータがあります。");
+        }
+        return {
+          categories: Object.fromEntries(names.map(name => [name, [...cats[name]]])),
+          exerciseVideos: Object.fromEntries(Object.entries(videos)),
+          categoryCount: names.length,
+          exerciseCount: count,
+          videoCount: Object.values(videos).filter(Boolean).length
+        };
+      };
+
+      const selectExerciseBackup = async (event) => {
+        setImportPreview(null);
+        setImportError("");
+        const file = event.target.files && event.target.files[0];
+        if (!file) return;
+        setImportFileName(file.name);
+        try {
+          if (file.size > 1024 * 1024) throw new Error("ファイルが大きすぎます（上限1MB）。");
+          const parsed = JSON.parse(await file.text());
+          setImportPreview(validateExerciseBackup(parsed));
+        } catch (error) {
+          setImportError(error.message || "ファイルを読み込めませんでした。");
+        } finally {
+          // 同じファイルをもう一度選べるようにする
+          event.target.value = "";
+        }
+      };
+
+      const restoreExerciseSettings = () => {
+        if (!importPreview) return;
+        if (!window.confirm(
+          `「${importFileName}」から部位${importPreview.categoryCount}件・種目${importPreview.exerciseCount}件・動画${importPreview.videoCount}件を復元します。\n現在の部位・種目・動画設定は置き換わります。筋トレ・健康履歴は変更しません。続行しますか？`
+        )) return;
+        const oldCategories = localStorage.getItem("app_categories");
+        const oldVideos = localStorage.getItem("app_exercise_videos");
+        try {
+          // 直前の設定を別キーに保存（次の復元までは保持）
+          localStorage.setItem("app_exercise_settings_before_restore", JSON.stringify({
+            format: "health-training-log-exercise-settings-v1",
+            exportedAt: new Date().toISOString(),
+            categories: oldCategories ? JSON.parse(oldCategories) : categories,
+            exerciseVideos: oldVideos ? JSON.parse(oldVideos) : exerciseVideos
+          }));
+          localStorage.setItem("app_categories", JSON.stringify(importPreview.categories));
+          localStorage.setItem("app_exercise_videos", JSON.stringify(importPreview.exerciseVideos));
+          setCategories(importPreview.categories);
+          setExerciseVideos(importPreview.exerciseVideos);
+          const firstCategory = Object.keys(importPreview.categories)[0] || "";
+          setSelectedCategory(firstCategory);
+          setTargetCategoryForNewEx(firstCategory);
+          setPlayingExerciseVideo("");
+          setImportPreview(null);
+          setImportFileName("");
+          alert("部位・種目・動画設定を復元しました。筋トレ・健康履歴は変更していません。");
+        } catch (error) {
+          try {
+            if (oldCategories === null) localStorage.removeItem("app_categories");
+            else localStorage.setItem("app_categories", oldCategories);
+            if (oldVideos === null) localStorage.removeItem("app_exercise_videos");
+            else localStorage.setItem("app_exercise_videos", oldVideos);
+          } catch (_) {}
+          alert("復元に失敗しました。保存済み設定の復旧を試みました。画面を再読み込みして確認してください。");
+          console.error("設定復元エラー:", error);
+        }
+      };
+
+      // ============================================================
       // 筋トレ入力
       // ============================================================
 
@@ -3461,6 +3564,44 @@ const handleAddTrainingSet = () => {
                     📥 種目・動画設定をバックアップ
                   </button>
                 </div>
+
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-gray-400">
+                    📤 部位・種目・動画設定を復元
+                  </label>
+                  <p className="text-xs text-gray-400">
+                    バックアップJSONを選び、内容を確認してから復元します。現在の設定は置き換わりますが、筋トレ・健康履歴は変更しません。
+                  </p>
+                  <input
+                    ref={importFileRef}
+                    type="file"
+                    accept=".json,application/json"
+                    onChange={selectExerciseBackup}
+                    className={`block w-full text-xs p-2 rounded-lg border ${inputClass}`}
+                    aria-label="設定バックアップJSONを選択"
+                  />
+                  {importError && (
+                    <p role="alert" className="text-xs text-red-400">⚠️ {importError}</p>
+                  )}
+                  {importPreview && (
+                    <div className={`p-3 rounded-lg border space-y-2 ${inputClass}`}>
+                      <p className="text-xs font-bold break-all">{importFileName}</p>
+                      <p className="text-xs">部位：{importPreview.categoryCount}件 ／ 種目：{importPreview.exerciseCount}件 ／ 動画URL：{importPreview.videoCount}件</p>
+                      <p className="text-xs text-gray-400 break-words">
+                        {Object.entries(importPreview.categories).map(([name, list]) => `${name}（${list.length}）`).join("、")}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={restoreExerciseSettings}
+                        className="w-full py-3 rounded-xl bg-amber-600 text-white text-sm font-bold"
+                      >
+                        内容を確認して復元する
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <hr className="border-gray-700" />
 
                 <hr className="border-gray-700" />
 
