@@ -86,6 +86,73 @@
     // アプリ本体
     // ============================================================
 
+    function groupExerciseHistory(logs) {
+  const categories = new Map();
+  for (const log of logs) {
+    if (log.type !== "筋トレ") continue;
+    const category = String(log.category ?? "").trim() || "部位未設定";
+    const name = String(log.detail ?? "").trim()
+      .replace(/\s*[(（]\s*[0-9０-９]+\s*セット目\s*[)）]$/u, "").trim();
+    const day = String(log.datetime ?? "").slice(0, 10);
+    if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+
+    if (!categories.has(category)) categories.set(category, new Map());
+    const exercises = categories.get(category);
+    if (!exercises.has(name)) exercises.set(name, new Map());
+    const days = exercises.get(name);
+    if (!days.has(day)) days.set(day, { day, total: 0, missing: 0, sets: [] });
+    const record = days.get(day);
+    const match = String(log.val2 ?? "").normalize("NFKC").trim().match(/^(\d+)\s*(?:回)?$/);
+    const reps = match ? Number(match[1]) : NaN;
+    if (Number.isSafeInteger(reps)) record.total += reps;
+    else record.missing++;
+    record.sets.push(log);
+  }
+  return categories;
+}
+
+function ExerciseHistory({ logs, cardClass, inputClass }) {
+  const h = React.createElement;
+  const [selectedCategory, setCategory] = React.useState("");
+  const [selectedExercise, setExercise] = React.useState("");
+  const categories = React.useMemo(() => groupExerciseHistory(logs), [logs]);
+  const categoryNames = [...categories.keys()];
+  const category = categories.has(selectedCategory) ? selectedCategory : categoryNames[0];
+  const exercises = categories.get(category);
+  const exerciseNames = exercises ? [...exercises.keys()] : [];
+  const exercise = exercises?.has(selectedExercise) ? selectedExercise : exerciseNames[0];
+  const days = exercise ? [...exercises.get(exercise).values()].sort((a, b) => b.day.localeCompare(a.day)) : [];
+  const chart = days.slice(0, 14).reverse();
+  const max = Math.max(1, ...chart.map(day => day.total));
+  const select = (label, values, value, change) => h("label", { className: "block flex-1 min-w-0 text-sm" },
+    label, h("select", { value, onChange: change, className: "block w-full mt-1 p-2 border rounded-lg " + inputClass },
+      values.map(name => h("option", { key: name, value: name }, name))));
+  return h("details", { className: "p-4 rounded-xl border " + cardClass },
+    h("summary", { className: "cursor-pointer font-bold" }, "種目別履歴・回数グラフ"),
+    !days.length ? h("p", { className: "mt-3 text-sm" }, "表示できる筋トレ記録がありません。") :
+      h("div", { className: "mt-3 space-y-4" },
+        h("div", { className: "flex gap-3" },
+          select("部位", categoryNames, category, e => { setCategory(e.target.value); setExercise(""); }),
+          select("種目", exerciseNames, exercise, e => setExercise(e.target.value))),
+        h("div", { className: "space-y-1" },
+          h("h3", { className: "text-sm font-bold" }, "日ごとの合計回数（直近" + chart.length + "実施日）"),
+          chart.map(({ day, total, missing, sets }) => {
+            const hasCount = missing < sets.length;
+            return h("div", { key: day, className: "grid grid-cols-[5.5rem_minmax(0,1fr)_5rem] items-center gap-2 text-xs" },
+              h("time", { dateTime: day }, day),
+              h("svg", { viewBox: "0 0 100 10", preserveAspectRatio: "none", "aria-hidden": true, className: "w-full h-3" },
+                h("rect", { width: 100, height: 10, fill: "currentColor", opacity: 0.12 }),
+                hasCount && h("rect", { width: total * 100 / max, height: 10, fill: "#dc2626" })),
+              h("span", { className: "text-right" }, !hasCount ? "未入力" : total + "回" + (missing ? "（一部）" : "")));
+          })),
+        h("h3", { className: "text-sm font-bold" }, "実施日の一覧（新しい順）"),
+        h("ul", { className: "space-y-2" }, days.map(({ day, sets }) =>
+          h("li", { key: day, className: "p-2 border rounded-lg text-sm" },
+            h("time", { dateTime: day, className: "font-bold" }, day),
+            h("ul", { className: "mt-1 space-y-1" }, sets.map((log, index) =>
+              h("li", { key: index }, [log.detail, log.val1, log.val2 || "回数未入力"].filter(Boolean).join(" ／ ")))))))));
+}
+
     function App() {
 
       const [tab, setTab] = useState("home");
@@ -3204,6 +3271,7 @@ const handleAddTrainingSet = () => {
             {tab === "history" && (
 
               <div className="space-y-4">
+                <ExerciseHistory logs={allLogs} cardClass={cardClass} inputClass={inputClass} />
 
                 <div
                   className={`p-4 rounded-xl border space-y-3 ${cardClass}`}
